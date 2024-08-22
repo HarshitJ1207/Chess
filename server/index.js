@@ -59,6 +59,21 @@ app.use('/', async (req, res, next) => {
 
 app.use('/api', routes);
 
+// Serve static files
+const buildPath = path.join(__dirname, 'build');
+app.use(express.static(buildPath));
+
+// Catch-all route for SPA
+app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'), err => {
+        if (err) {
+            console.error('Error serving index.html:', err);
+            res.status(500).send('An error occurred while loading the page');
+        }
+    });
+});
+
+
 app.use('*', (req, res) => {
     res.status(200).send('Hello World');    
 });
