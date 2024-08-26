@@ -28,7 +28,6 @@ const Chat = ({channel}) => {
         if (!username) return;
 
         const handleMessage = (message) => {
-            if (message.username === username) return;
             setMessages((prevMessages) => [...prevMessages, message]);
         };
 
@@ -51,7 +50,7 @@ const Chat = ({channel}) => {
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 text: message
             };
-            socket.emit(channel, newMessage);
+            socket.emit(channel, {message: { time: newMessage.time, text: newMessage.text }, token: localStorage.getItem('token') });
             setMessages((prevMessages) => [...prevMessages, newMessage]);
             setMessage('');
         }

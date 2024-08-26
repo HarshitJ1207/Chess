@@ -176,6 +176,12 @@ function BoardEditor() {
 									borderRadius: "8px",
 									boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
 								}}
+								customDarkSquareStyle={{
+                                    backgroundColor: "#3a6b7a"
+                                }}
+                                customLightSquareStyle={{
+                                    backgroundColor: "#a5c3cc"
+                                }}
 							/>
 						</Box>
 					</Box>

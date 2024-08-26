@@ -61,6 +61,9 @@ function Navbar() {
                 <ListItem component={Link} to="/play-online">
                     <ListItemText primary="Play Online" />
                 </ListItem>
+                <ListItem component={Link} to="/leaderboard">
+                    <ListItemText primary="Leaderboard" />
+                </ListItem>
                 <ListItem component={Link} to="/play-computer">
                     <ListItemText primary="Play Computer" />
                 </ListItem>
@@ -120,6 +123,7 @@ function Navbar() {
                     <Box>
                         <Button component={Link} to="/" color="inherit">Home</Button>
                         <Button component={Link} to="/play-online" color="inherit">Play Online</Button>
+                        <Button component={Link} to="/leaderboard" color="inherit">Leaderboard</Button>
                         <Button component={Link} to="/play-computer" color="inherit">Play Computer</Button>
                         <Button
                             color="inherit"

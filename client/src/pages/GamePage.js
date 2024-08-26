@@ -10,7 +10,7 @@ function Room() {
                 <Paper elevation={3} sx={{ padding: 2 }}>
                     <ChessBoard />
                 </Paper>
-                <Chat channel={'global-chat'} />
+                <Chat channel={`global-chat`} />
             </Box>
         </Container>
     );

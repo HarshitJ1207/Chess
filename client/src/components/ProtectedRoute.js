@@ -23,6 +23,8 @@ const ProtectedRoute = ({ children }) => {
             } catch (error) {
                 console.error('Error verifying token:', error);
                 setIsAuthenticated(false);
+                localStorage.removeItem('token');
+                localStorage.removeItem('userInfo');
             } finally {
                 setLoading(false);
             }

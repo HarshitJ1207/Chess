@@ -13,7 +13,7 @@ import BoardEditorPage from "./pages/BoardEditorPage";
 import GamePage from "./pages/GamePage"; // Import the GamePage component
 import ProtectedRoute from "./components/ProtectedRoute";
 import TestChessBoard from "./pages/TestChessBoard";
-
+import Leaderboard from "./pages/Leaderboard";
 console.log(localStorage.getItem('userInfo'));
 
 function App() {
@@ -31,6 +31,7 @@ function App() {
                     <Route path="/tools/analysis-board" element={<AnalysisBoardPage />} />
                     <Route path="/tools/board-editor" element={<BoardEditorPage />} />
                     <Route path="/game/:roomId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
+                    <Route path="/leaderBoard" element={< Leaderboard/>} />
                 </Routes>
             </Router>
         </>

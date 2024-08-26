@@ -9,6 +9,7 @@ export const useSocket = () => {
 };
 
 export const SocketProvider = ({ children }) => {
+    console.log("socket provider rendered");
     const uuid = localStorage.getItem("uuid") || uuidv4();
     localStorage.setItem("uuid", uuid);
 
@@ -20,6 +21,7 @@ export const SocketProvider = ({ children }) => {
         });
 
         newSocket.on("connect", () => {
+            console.log("socket connected");
             setSocket(newSocket);
         });
 

@@ -101,6 +101,12 @@ const PlayComputer = ({ fen }) => {
                                         borderRadius: "8px",
                                         boxShadow: "0 8px 40px rgba(0, 0, 0, 0.12)",
                                     }}
+                                    customDarkSquareStyle={{
+                                        backgroundColor: "#3a6b7a"
+                                    }}
+                                    customLightSquareStyle={{
+                                        backgroundColor: "#a5c3cc"
+                                    }}
                                 />
                             </Box>
                         </Box>

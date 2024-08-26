@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Container, Grid, Card, CardContent, Typography, Button, Box } from "@mui/material";
+import { Container, Grid, Card, CardContent, Typography, Button, Box, TextField } from "@mui/material";
 import { styled } from "@mui/system";
 import Chat from "../components/Chat"; // Assuming you have a ChatBox component
 import LiveUserStats from "../components/LiveUserStats";
 import { useSocket } from "../context/SocketContext";
 import WaitingForMatchModal from "../components/WaitingForMatchModal"; // Correct import
 import { useNavigate } from 'react-router-dom';
+import CreateChallengeModal from "../components/CreateChallengeModal";
+import ErrorModalUserAlreadyPlaying from "../components/ErrorModalUserAlreadyPlaying";
 
 const timeControls = [
     "1 + 0", "1 + 1", "3 + 0", "3 + 1", "5 + 0", "5 + 1", "10 + 0", "10 + 5",
@@ -34,7 +36,12 @@ function PlayOnline() {
     const token = localStorage.getItem('token');
     const socket = useSocket();
     const [expandedCard, setExpandedCard] = useState(null);
+    const [createChallenege, setCreateChallenge] = useState(false);
     const [inQueue, setInQueue] = useState(false);
+    const [challengeCode, setChallengeCode] = useState('');
+    const [errorJoinChallenge, setErrorJoinChallenge] = useState('');
+    const [errorUserAlreadyPlaying, setErrorUserAlreadyPlaying] = useState('');
+
 
     const handleCardClick = (index) => {
         setExpandedCard(expandedCard === index ? null : index);
@@ -46,13 +53,23 @@ function PlayOnline() {
     };
 
     const challengeFriendHandler = (index) => {
-        // Challenge friend logic here
+        setCreateChallenge(index + 1);
+    }
+
+    const joinChallengeHandler = () => {
+        if (challengeCode.trim()) {
+            socket.emit('join-challenge', { challengeId: challengeCode.trim(), token });
+        }
     }
 
     const leaveMatchMaking = () => {
         if(!inQueue) return;
         socket.emit('leave-matchmaking', {index: inQueue, token});
         setInQueue(false); 
+    }
+
+    const deleteChallenge = () => {
+        setCreateChallenge(false);
     }
 
     useEffect(() => {
@@ -65,14 +82,26 @@ function PlayOnline() {
             const roomId = encodeURIComponent(data.roomId);
             navigate(`/game/${roomId}`);
         });
+        socket.on('error-join-challenge', message =>{
+            setErrorJoinChallenge(message);
+        });
+        socket.on('error-user-already-playing', ({roomId}) => {
+            setErrorUserAlreadyPlaying(roomId);
+            setChallengeCode('');
+            setInQueue(false);
+            setCreateChallenge(false);
+            setErrorJoinChallenge('');
+        });
         return () => {
             window.removeEventListener('beforeunload', handleLeaveMatchMaking);
             socket.off('match-found');
+            socket.off('error-join-challenge');
+            socket.off('error-user-already-playing');
         }
     });
 
     return (
-        <Container>
+        <Container sx={{ marginBottom: 10 }}>
             <Box display="flex" alignItems="center" justifyContent="center" mb={4}>
                 <Typography variant="h4" gutterBottom>
                     Choose Time Control
@@ -110,10 +139,26 @@ function PlayOnline() {
                     </Grid>
                 ))}
             </Grid>
+            <Grid item xs={12}>
+                <TextField
+                    label="Enter Challenge Code"
+                    variant="outlined"
+                    fullWidth
+                    value={challengeCode}
+                    onChange={(e) => {setChallengeCode(e.target.value); setErrorJoinChallenge('');}}
+                    margin="normal"
+                />
+                <Button variant="contained" color="primary" fullWidth onClick={joinChallengeHandler}>
+                    Join Challenge
+                </Button>
+                {errorJoinChallenge && <Typography color="error">{errorJoinChallenge}</Typography>}
+            </Grid>
             <ChatContainer>
                 <Chat channel={'global-chat'} />
             </ChatContainer>
             {inQueue && <WaitingForMatchModal onClose={leaveMatchMaking} />}
+            {createChallenege && <CreateChallengeModal index={createChallenege} onClose={deleteChallenge} />}
+            {errorUserAlreadyPlaying && <ErrorModalUserAlreadyPlaying roomId = {errorUserAlreadyPlaying} />}
         </Container>
     );
 }

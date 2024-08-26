@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import {
     TextField,
@@ -12,6 +12,13 @@ function LoginForm() {
     const [error, setError] = useState('');
     const [formLoading, setFormLoading] = useState(false);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const userInfo = localStorage.getItem('userInfo');
+        if(userInfo) {
+            navigate('/');
+        }
+    });
 
     const handleChange = (e) => {
         const { name, value } = e.target;

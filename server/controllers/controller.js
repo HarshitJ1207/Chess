@@ -1,12 +1,8 @@
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const sequelize = require('../config/db');
-const User = require('../models/User')(sequelize); // Adjust the path as necessary
-const UserInfo = require('../models/UserInfo')(sequelize); // Adjust the path as necessary
+const { User, UserInfo, sequelize } = require('./../models/models');
 const {Sequelize, Op} = require('sequelize');
-const client = require('../config/redis');
-const {getIO} = require('../config/socket');
 
 
 module.exports.signup = async (req, res) => {
@@ -33,7 +29,7 @@ module.exports.signup = async (req, res) => {
         const rating = userInfo.rating;
 
         // Generate token
-        const token = jwt.sign({userId: user.id, rating}, process.env.JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({userId: user.id, rating, username: username}, process.env.JWT_SECRET, { expiresIn: '24h' });
 
         res.status(201).json({ message: "User created successfully", token, userInfo: {username: user.username, rating:rating }});        
     } catch (error) {
@@ -41,7 +37,7 @@ module.exports.signup = async (req, res) => {
         res.status(500).json({
             errors: { message: error.message },
         });
-    }
+    } 
 };
 
 
@@ -76,13 +72,10 @@ module.exports.login = async (req, res) => {
                 error: "Username/Email and Password dont match"
             });
         }
- 
         const userInfo = await UserInfo.findOne({ where: { userId: user.id } });
 
-        console.log(userInfo);
-
         // Generate token
-        const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ userId: user.id, rating: userInfo.rating, username: user.username }, process.env.JWT_SECRET, { expiresIn: '24h' });
         res.status(200).json({ message: "Login successful", token, userInfo: { username: user.username, rating: userInfo.rating } });
     } catch (error) {
         console.error(error);
@@ -107,3 +100,35 @@ module.exports.jwtVerify = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+
+module.exports.leaderboard = async (req, res) => { 
+    try {
+        const leaderboard = await UserInfo.findAll({
+            attributes: ['rating', 'userId', 'wins', 'losses', 'draws'],
+            order: [
+                ['rating', 'DESC']
+            ],
+            include: {
+                model: User,
+                attributes: ['username']
+            }
+        });
+
+        // Map the results to extract only the necessary fields
+        const cleanLeaderboard = leaderboard.map(userInfo => ({
+            rating: userInfo.rating,
+            userId: userInfo.userId,
+            username: userInfo.User.username,
+            wins: userInfo.wins,
+            losses: userInfo.losses,
+            draws: userInfo.draws
+        }));
+
+        res.status(200).json(cleanLeaderboard);
+        console.log(cleanLeaderboard);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+}

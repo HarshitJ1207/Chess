@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Container,
     Typography,
@@ -6,8 +6,16 @@ import {
     TextField,
     Button,
 } from '@mui/material';
+import { useNavigate } from "react-router-dom";
 
 const SignupForm = () => {
+    const navigate = useNavigate();
+    useEffect(() => {
+        const userInfo = localStorage.getItem('userInfo');
+        if(userInfo) {
+            navigate('/');
+        }
+    });
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -20,6 +28,8 @@ const SignupForm = () => {
 		const errors = {};
         if(!username.trim()){
             errors.username = "Username is required";
+        } else if (username.includes(" ")) {
+            errors.username = "Username should not contain spaces";
         }
 		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 		if (!email) {
@@ -27,6 +37,9 @@ const SignupForm = () => {
 		} else if (!emailRegex.test(email.trim().toLowerCase())) {
 			errors.email = "Email is not valid";
 		}
+        else if(email.includes(" ")){
+            errors.email = "Email should not contain spaces";
+        }
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{4,12}$/;
 		if (!password) {
 			errors.password = "Password is required";
@@ -34,6 +47,9 @@ const SignupForm = () => {
 			errors.password =
 				"Password must contain at least one letter, one number, and be between 4 and 12 characters long";
 		}
+        else if(password.includes(" ")){
+            errors.password = "Password should not contain spaces";
+        }
         if (password !== confirmPassword) {
             errors.confirmPassword = "Passwords do not match";
         }

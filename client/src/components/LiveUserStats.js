@@ -8,10 +8,8 @@ function LiveUserStats() {
     const [liveGameCount, setLiveGameCount] = useState(0);
 
     useEffect(() => {
-        console.log('useEffect in LiveUserStats');
         socket.on('live-user-count', (count) => {
             setLiveUserCount(count);
-            console.log('live user count update received', count);
         });
 
         socket.on('live-game-count', (count) => {

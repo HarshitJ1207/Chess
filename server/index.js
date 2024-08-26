@@ -4,28 +4,12 @@ const http = require('http');
 const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
-const sequelize = require('./config/db.js'); 
-const UserModel = require('./models/User'); 
-const UserInfoModel = require('./models/UserInfo');
 const { initializeSocket } = require('./config/socket');
 const jwt = require('jsonwebtoken');
-const routes = require('./routes/routes.js');
+const routes = require('./routes/routes');
+const {User} = require('./models/models');
 
 initializeSocket(server);
-
-const User = UserModel(sequelize); 
-const UserInfo = UserInfoModel(sequelize);
-
-User.hasOne(UserInfo, { foreignKey: 'userId' });
-UserInfo.belongsTo(User, { foreignKey: 'userId' });
-
-sequelize.sync()
-    .then(() => {
-        console.log('Database & tables created!');
-    })
-    .catch(err => {
-        console.error('Unable to sync database:', err);
-    });
 
 const corsOptions = { 
     origin: process.env.ORIGIN,

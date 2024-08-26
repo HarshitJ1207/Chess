@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Chess from "chess.js";
 import { Chessboard } from "react-chessboard";
 import MoveHistory from "../MoveHistory";
@@ -7,202 +7,261 @@ import Timer from "../Timer";
 import PlayerInfoCard from "../PlayerInfoCard";
 import { useParams } from "react-router-dom";
 import GameOverModal from "../GameOverModal";
-import { Container, Grid, Paper, Box, Divider } from '@mui/material';
+import { Container, Grid, Paper, Box, Divider, Button } from '@mui/material';
 
 export default function ChessBoard() {
-    const { roomId } = useParams();
-    const socket = useSocket();
-    const [firstLoad, setFirstLoad] = useState(true);
-    const [game, setGame] = useState(new Chess());
-    const [userColor, setUserColor] = useState(null);
-    const [opponentInfo, setOpponentInfo] = useState({username: "Opponent", rating: 1000});
-    const [userInfo, setUserInfo] = useState({username: "You", rating: 1000});
-    const [timeIncrement, setTimeIncrement] = useState(0);
-    const [userTime, setUserTime] = useState(100.0);
-    const [opponentTime, setOpponentTime] = useState(100.0);
-    const [showModal, setShowModal] = useState(false);
-    const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
-    const [isGameOver, setIsGameOver] = useState(false); // New state to track game over
-    const intervalRef = useRef(null);
+	console.log("ChessBoard rendered");
+	const { roomId } = useParams();
+	const socket = useSocket();
+	const [game, setGame] = useState(new Chess());
+	const [userColor, setUserColor] = useState(null);
+	const [opponentInfo, setOpponentInfo] = useState({
+        username: "Opponent",
+		rating: 1000,
+	});
+	const [userInfo, setUserInfo] = useState({ username: "You", rating: 1000 });
+	const [userTime, setUserTime] = useState(0.0);
+	const [opponentTime, setOpponentTime] = useState(0.0);
+	const [showModal, setShowModal] = useState(false);
+	const [gameState, setGameState] = useState(null);
+	const [drawOfferExists, setDrawOfferExists] = useState(false);
+	console.log("game state", gameState);   
 
-    const isUserTurn = useCallback(() => {
-        return (game.turn()[0] === "w" && userColor === 1) || (game.turn()[0] === "b" && userColor === 0);
-    }, [game, userColor]);
+ 
+  	// const isUserTurn = useCallback(() => {
+	// 	return (
+	// 		(game.turn() === "w" && userColor === 1) ||
+	// 		(game.turn() === "b" && userColor === 0)
+	// 	);
+    // }, [game, userColor]);
 
-    function safeGameMutate(modify) {
-        setGame(g => {
-            const update = { ...g };
-            modify(update);
-            return update;
-        });
-    }
+	const safeGameMutate = useCallback((modify) => {
+		setGame((g) => {
+			const update = { ...g };
+			modify(update);
+			return update;
+		});
+	}, []);
 
-    function onDrop(sourceSquare, targetSquare, piece) {
-        if (isGameOver) return false; // Prevent moves if game is over
-        const gameCopy = { ...game };
-        const moveValid = gameCopy.move({
-            from: sourceSquare,
-            to: targetSquare,
-            promotion: piece[1].toLowerCase() ?? "q"
-        });
-        if (!moveValid) return false;
-        const move = {
-            from: sourceSquare,
-            to: targetSquare,
-            promotion: piece[1].toLowerCase() ?? "q"
-        }
-        safeGameMutate(game => {game.move(move)});
-        const moveData = { sourceSquare, targetSquare, piece };
-        socket.emit("move", { moveData, roomId });
-        setUserTime(time => time + timeIncrement);
-        setLastUpdateTime(Date.now());
-        return true;
-    }
+	const onDrop = useCallback(
+		(sourceSquare, targetSquare, piece) => {
+			if (gameState !== null) return false;
+			const move = {
+				from: sourceSquare,
+				to: targetSquare,
+				promotion: piece[1].toLowerCase() ?? "q",
+			};
+			try {
+				const newGame = { ...game };
+				const result = newGame.move(move);
+				if (result) {
+					setGame(newGame);
+					const currentTime = Date.now();
+					socket.emit("move", {
+						moveData: {
+							sourceSquare,
+							targetSquare,
+							piece,
+							time: currentTime,
+						},
+						roomId,
+                        token: localStorage.getItem("token")
+					});
+                    setDrawOfferExists(false);
+					return true;
+				}
+			} catch (error) {
+				console.error("Invalid move:", error);
+			}
+			return false;
+		},
+		[game, socket, roomId, gameState]
+	);
 
-    useEffect(() => {
-        socket.on("get-game-data", (data) => {
-            setUserColor(data.color);
-            setOpponentInfo(data.opponentInfo);
-            setUserInfo(data.userInfo);
-            setTimeIncrement(+data.timeControl.increment);
-            setUserTime(+data.timeControl.init * 60);
-            setOpponentTime(+data.timeControl.init * 60);
-            if (data.moveHistory.length > 0) {
-                data.moveHistory.forEach(move => {
-                    safeGameMutate(game => {
-                        game.move(move);
-                    });
-                });
-            }
-        });
+	// handle init
+	useEffect(() => {
+		const handleGetGameData = (data) => {
+			setUserColor(data.color);
+			setOpponentInfo(data.opponentInfo);
+			setUserInfo(data.userInfo);
+			setGameState(data.gameState);
+			setDrawOfferExists(data.drawOfferExists);
+			setUserTime(+data.timeControl.init * 60*1000);
+			setOpponentTime(+data.timeControl.init * 60*1000);
+			if (data.moveHistory.length > 0) {
+				const newGame = new Chess();
+				data.moveHistory.forEach((move) => newGame.move(move));
+				setGame(newGame);
+			}
+			console.log("game data received");
+		};
+		const handleFocus = () => {
+			// window.location.reload();
+		};
 
-        socket.on('move', (moveData) => {
-            const move = {
-                from: moveData.sourceSquare,
-                to: moveData.targetSquare,
-                promotion: moveData.piece[1].toLowerCase() ?? "q",
-            };
-            safeGameMutate(game => {game.move(move)});
-            setOpponentTime(time => time + timeIncrement);
-            setLastUpdateTime(Date.now());
-        });
-
-        const token = localStorage.getItem('token');
-        if(firstLoad) {
-            socket.emit("get-game-data", {token, roomId});
-            setFirstLoad(false);
-        }
+        window.addEventListener('focus', handleFocus);
+		const token = localStorage.getItem("token");
+		console.log("game data requested");
+		socket.emit("get-game-data", { token, roomId });
+		socket.on("get-game-data", handleGetGameData);
 
         return () => {
-            socket.off("get-game-data");
-            socket.off('move');
-            clearInterval(intervalRef.current);
-            const currentTime = Date.now();
-            const elapsedTime = (currentTime - lastUpdateTime) / 1000;
-            const updatedUserTime = userTime - (isUserTurn() ? elapsedTime : 0);
-            const updatedOpponentTime = opponentTime - (!isUserTurn() ? elapsedTime : 0);
-            socket.emit("update-timer", {
-                roomId,
-                userTime: updatedUserTime,
-                opponentTime: updatedOpponentTime,
-                lastUpdateTime: currentTime
-            });
+            socket.off("get-game-data", handleGetGameData);
+            window.removeEventListener('focus', handleFocus);
         };
-    }, [roomId, socket, timeIncrement, firstLoad, game, userTime, opponentTime, lastUpdateTime, isUserTurn]);
+	}, [socket, roomId, userInfo.rating]);
 
-    useEffect(() => {
-        if (game.game_over()) {
-            if (game.in_checkmate()) {
-                setShowModal("Win by Checkmate");
-            } else if (game.in_draw()) {
-                setShowModal("Draw");
-            } else if (game.in_stalemate()) {
-                setShowModal("Stalemate");
-            } else if (game.in_threefold_repetition()) {
-                setShowModal("Threefold Repetition");
-            } else if (game.insufficient_material()) {
-                setShowModal("Insufficient Material");
-            }
-            setIsGameOver(true); // Set game over state
-            clearInterval(intervalRef.current); // Stop the timer
-        }
-    }, [game]);
 
-    useEffect(() => {
-        if (!firstLoad && !isGameOver) {
-            intervalRef.current = setInterval(() => {
-                const currentTime = Date.now();
-                const elapsedTime = (currentTime - lastUpdateTime) / 1000;
-                if (isUserTurn()) {
-                    setUserTime(time => {
-                        const newTime = time - elapsedTime;
-                        if (newTime <= 0 && !isGameOver) {
-                            setShowModal("Time's Up! You Lose");
-                            setIsGameOver(true); // Set game over state
-                            clearInterval(intervalRef.current); // Stop the timer
-                            return 0;
-                        }
-                        return newTime;
-                    });
-                } else {
-                    setOpponentTime(time => {
-                        const newTime = time - elapsedTime;
-                        if (newTime <= 0 && !isGameOver) {
-                            setShowModal("You win! Your opponent ran out of time");
-                            setIsGameOver(true); // Set game over state
-                            clearInterval(intervalRef.current); // Stop the timer
-                            return 0;
-                        }
-                        return newTime;
-                    });
-                }
-                setLastUpdateTime(currentTime);
-            }, 100); // Update every 0.1 seconds
-        }
+	// handle game state
+	useEffect(() => {
+        const handleOfferDraw = () => {
+            setDrawOfferExists(true);
+        };
+        const handleResult = ({result, message, ratingChange, opponentRating}) => {
+            setGameState(result);
+            setShowModal({
+				message,
+				rating: userInfo.rating,
+				ratingChange,
+			});
+			setUserInfo((info) => ({ ...info, rating: info.rating + ratingChange }));
+			setOpponentInfo((info) => ({ ...info, rating: opponentRating }));
+			console.log('modal set');
+        };
+        socket.on('offer-draw', handleOfferDraw);
+        socket.on('result', handleResult);
+		return () => {
+            socket.off("offer-draw");
+            socket.off("result");
+		};
+	}, [socket, userInfo.rating]);
 
-        return () => clearInterval(intervalRef.current);
-    }, [firstLoad, lastUpdateTime, isUserTurn, isGameOver]);
+	//handle moves
+	useEffect(() => {
+		socket.emit("player-connected", { roomId });
+		const handleMove = (moveData) => {
+			safeGameMutate((g) => {
+				g.move({
+					from: moveData.sourceSquare,
+					to: moveData.targetSquare,
+					promotion: moveData.piece[1].toLowerCase() ?? "q",
+				});
+			});
+		};
+		socket.on("move", handleMove);
+		return () => {
+			socket.emit("player-disconnected", { roomId });
+			socket.off("move", handleMove);
+		};
+	}, [socket, roomId, safeGameMutate]);
 
-    return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <GameOverModal show={showModal} onClose={() => setShowModal(false)} />
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={8}>
-                    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                            <PlayerInfoCard playerInfo={opponentInfo} />
-                            <Timer time={opponentTime} />
-                        </Box>
-                        <Divider sx={{ mb: 2 }} />
-                        <Box alignSelf="center" width="100%" maxWidth={500}>
-                            <Chessboard
-                                id="PremovesEnabled"
-                                position={game.fen()}
-                                onPieceDrop={onDrop}
-                                customBoardStyle={{
-                                    borderRadius: "4px",
-                                    boxShadow: "0 5px 15px rgba(0, 0, 0, 0.2)",
-                                }}
-                                boardOrientation={userColor === 1 ? "white" : "black"}
-                                isDraggablePiece={data => {
-                                    if (isGameOver) return false;
-                                    const piece = data.piece;
-                                    return (piece[0] === "w" && userColor === 1) || (piece[0] === "b" && userColor === 0)
-                                }}
-                                clearPremovesOnRightClick={true}
-                            />
-                        </Box>
-                        <Divider sx={{ mt: 2, mb: 2 }} />
-                        <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Timer time={userTime} />
-                            <PlayerInfoCard playerInfo={userInfo} />
-                        </Box>
-                    </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <MoveHistory pgn={game.pgn()} />
-                </Grid>
-            </Grid>
-        </Container>
-    );
+	//handle timer
+	useEffect(() => {
+		socket.on('timer-update', ({userTime, opponentTime}) => {
+			setUserTime(userTime);
+			setOpponentTime(opponentTime);
+		});
+	}, [socket]);
+
+
+
+	const chessboardProps = useMemo(
+		() => ({
+			id: "PremovesEnabled",
+			position: game.fen(),
+			onPieceDrop: onDrop,
+			customBoardStyle: {
+				borderRadius: "4px",
+				boxShadow: "0 5px 15px rgba(0, 0, 0, 0.2)",
+			},
+			boardOrientation: userColor === 1 ? "white" : "black",
+			isDraggablePiece: ({ piece }) =>
+				!(gameState !== null) &&
+				((piece[0] === "w" && userColor === 1) ||
+				(piece[0] === "b" && userColor === 0)),
+			customDarkSquareStyle: { backgroundColor: "#3a6b7a" },
+			customLightSquareStyle: { backgroundColor: "#a5c3cc" },
+		}),
+		[game, onDrop, userColor, gameState]
+	);
+
+	const handleOfferDraw = () => {
+        socket.emit("offer-draw", { roomId, token: localStorage.getItem("token") });
+    };
+	const handleResign = () => {
+        socket.emit("resign", {roomId, token: localStorage.getItem("token")});
+    };
+
+
+	return (
+		<Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+			<GameOverModal
+				gameOverData={showModal}
+				onClose={() => setShowModal(false)}
+			/>
+			<Grid container spacing={3}>
+				<Grid item xs={12} md={8}>
+					<Paper
+						elevation={3}
+						sx={{
+							p: 2,
+							display: "flex",
+							flexDirection: "column",
+							height: "100%",
+						}}
+					>
+						<Box
+							display="flex"
+							justifyContent="space-between"
+							alignItems="center"
+							mb={2}
+						>
+							<PlayerInfoCard playerInfo={opponentInfo} />
+							<Timer time={opponentTime} />
+						</Box>
+						<Divider sx={{ mb: 2 }} />
+						<Box alignSelf="center" width="100%" maxWidth={500}>
+							<Chessboard {...chessboardProps} />
+						</Box>
+						<Box
+							display="flex"
+							justifyContent="center"
+							mt={2}
+							mb={2}
+						>
+							<Button
+								variant="contained"
+								color="primary"
+								sx={{ mr: 2 }}
+								onClick={handleOfferDraw}
+								disabled={gameState !== null}
+							>
+								{drawOfferExists ? 'Accept Draw': 'Offer Draw'}
+							</Button>
+							<Button
+								variant="contained"
+								color="secondary"
+								onClick={handleResign}
+								disabled={gameState !== null}
+							>
+								Resign
+							</Button>
+						</Box>
+						<Divider sx={{ mt: 2, mb: 2 }} />
+						<Box
+							display="flex"
+							justifyContent="space-between"
+							alignItems="center"
+						>
+							<Timer time={userTime} />
+							<PlayerInfoCard playerInfo={userInfo} />
+						</Box>
+					</Paper>
+				</Grid>
+				<Grid item xs={12} md={4}>
+					<MoveHistory pgn={game.pgn()} />
+				</Grid>
+			</Grid>
+		</Container>
+	);
 }

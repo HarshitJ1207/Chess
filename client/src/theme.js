@@ -6,7 +6,6 @@ const theme = createTheme({
         mode: "light", // You can switch to "dark" for dark mode
         primary: {
             main: "#5d9096",
-            light: "#8b9bd6",
             dark: "#3a6b7a",
             contrastText: "#ffffff", // Ensure text is readable on primary color
         },
