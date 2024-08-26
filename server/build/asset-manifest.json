@@ -1,0 +1,19 @@
+{
+  "files": {
+    "main.css": "/static/css/main.cc52cb1f.css",
+    "main.js": "/static/js/main.c952605e.js",
+    "static/js/453.258b012d.chunk.js": "/static/js/453.258b012d.chunk.js",
+    "static/media/amiri-quran-arabic-400-normal.woff": "/static/media/amiri-quran-arabic-400-normal.244f9dec24688662b0ae.woff",
+    "static/media/amiri-quran-arabic-400-normal.woff2": "/static/media/amiri-quran-arabic-400-normal.c2f1903bb09deeffea72.woff2",
+    "static/media/amiri-quran-latin-400-normal.woff": "/static/media/amiri-quran-latin-400-normal.724376d693c04c7a070b.woff",
+    "static/media/amiri-quran-latin-400-normal.woff2": "/static/media/amiri-quran-latin-400-normal.b72ab90fcfc37c33ca02.woff2",
+    "index.html": "/index.html",
+    "main.cc52cb1f.css.map": "/static/css/main.cc52cb1f.css.map",
+    "main.c952605e.js.map": "/static/js/main.c952605e.js.map",
+    "453.258b012d.chunk.js.map": "/static/js/453.258b012d.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.cc52cb1f.css",
+    "static/js/main.c952605e.js"
+  ]
+}
