@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:8761/eureka/apps)",
+      "Bash(curl *)",
+      "Bash(docker *)"
+    ]
+  }
+}
