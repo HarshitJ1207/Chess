@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * End-to-end smoke test for the chess platform's game loop.
+ * End-to-end smoke test for the chess platform's game loop via gateway.
  *
  *   register → login → queue (matchmaking) → MatchCreatedEvent (Kafka)
  *   → game-service instantiates game → both players connect over WebSocket
@@ -11,11 +11,13 @@
  *   node scripts/test-game.mjs
  */
 
-const AUTH = 'http://localhost:8081';
-const MM   = 'http://localhost:8082';
-const WS   = 'ws://localhost:8083';
-const RATING = 'http://localhost:8084';
-const HISTORY = 'http://localhost:8085';
+const GATEWAY = 'http://localhost:8080';
+const WS_GATEWAY = 'ws://localhost:8080';
+const AUTH = GATEWAY;
+const MM   = GATEWAY;
+const WS   = WS_GATEWAY;
+const RATING = GATEWAY;
+const HISTORY = GATEWAY;
 const ADMIN = 'http://localhost:9644'; // redpanda admin (to confirm Kafka produce)
 
 const ts = Date.now();

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * End-to-end test for auth-service boundary.
+ * End-to-end test for auth-service boundary via gateway.
  *
  * Tests:
  *   1. Register two different users → both return 201 with tokens
@@ -8,11 +8,11 @@
  *   3. Login with correct credentials → 200, fresh tokens
  *   4. Test invalid JWT validation → returns { valid: false, userId: null, username: null }
  *
- * Requires: auth-service running on localhost:8081
+ * Requires: gateway running on localhost:8080
  *   node scripts/test-auth.mjs
  */
 
-const AUTH = 'http://localhost:8081';
+const AUTH = 'http://localhost:8080';
 
 const ts = Date.now();
 const P1 = { username: `auth_p1_${ts}`, email: `auth_p1_${ts}@chess.test`, password: 'password123' };

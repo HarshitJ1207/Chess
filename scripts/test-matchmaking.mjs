@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
- * End-to-end test for matchmaking-service boundary.
+ * End-to-end test for matchmaking-service boundary via gateway.
  *
  * Tests:
  *   1. P1 registers and queues → QUEUED status
  *   2. P2 registers and queues → MATCHED status with gameId + color + opponentId
  *   3. P3 registers, queues, then leaves queue → DELETE returns 204, next queue returns QUEUED (no match)
  *
- * Requires: auth-service on localhost:8081, matchmaking-service on localhost:8082
+ * Requires: gateway on localhost:8080
  *   node scripts/test-matchmaking.mjs
  */
 
-const AUTH = 'http://localhost:8081';
-const MM = 'http://localhost:8082';
+const GATEWAY = 'http://localhost:8080';
+const AUTH = GATEWAY;
+const MM = GATEWAY;
 
 const ts = Date.now();
 const P1 = { username: `mm_p1_${ts}`, email: `mm_p1_${ts}@chess.test`, password: 'password123' };

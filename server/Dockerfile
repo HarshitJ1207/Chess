@@ -9,12 +9,12 @@ ARG SERVICE_NAME
 # All subproject build files must be present so Gradle can configure the
 # multi-module project — even when only building one service.
 COPY eureka-server/build.gradle eureka-server/
+COPY gateway-service/build.gradle gateway-service/
 COPY auth-service/build.gradle auth-service/
 COPY matchmaking-service/build.gradle matchmaking-service/
 COPY game-service/build.gradle game-service/
 COPY rating-service/build.gradle rating-service/
 COPY history-service/build.gradle history-service/
-COPY shared-security/build.gradle shared-security/
 
 RUN ./gradlew :${SERVICE_NAME}:dependencies --no-daemon -q
 

@@ -6,7 +6,6 @@ import com.example.chess.matchmaking.service.MatchmakingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -18,15 +17,14 @@ public class MatchmakingController {
 
     @PostMapping("/queue")
     public ResponseEntity<QueueResponse> joinQueue(@Valid @RequestBody QueueRequest request,
-                                                   Authentication auth) {
-        String playerId = auth.getName(); // subject = userId from JWT
-        return ResponseEntity.ok(matchmakingService.joinQueue(playerId, request));
+                                                   @RequestHeader("X-User-ID") String userId) {
+        return ResponseEntity.ok(matchmakingService.joinQueue(userId, request));
     }
 
     @DeleteMapping("/queue/{timeControl}")
     public ResponseEntity<Void> leaveQueue(@PathVariable String timeControl,
-                                           Authentication auth) {
-        matchmakingService.leaveQueue(auth.getName(), timeControl);
+                                           @RequestHeader("X-User-ID") String userId) {
+        matchmakingService.leaveQueue(userId, timeControl);
         return ResponseEntity.noContent().build();
     }
 }

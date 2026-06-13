@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      routes:
+        - id: auth-public
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/register,/api/auth/login
+
+        - id: auth-validate
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/validate
+
+        - id: matchmaking
+          uri: lb://MATCHMAKING-SERVICE
+          predicates:
+            - Path=/api/matchmaking/**
+          filters:
+            - JwtValidationFilter
+
+        - id: game
+          uri: lb:ws://GAME-SERVICE
+          predicates:
+            - Path=/ws/game/**
+          filters:
+            - JwtValidationFilter
+
+        - id: ratings
+          uri: lb://RATING-SERVICE
+          predicates:
+            - Path=/api/ratings/**
+
+        - id: history
+          uri: lb://HISTORY-SERVICE
+          predicates:
+            - Path=/api/history/**
+
+jwt:
+  secret: ${JWT_SECRET}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+  instance:
+    prefer-ip-address: true
