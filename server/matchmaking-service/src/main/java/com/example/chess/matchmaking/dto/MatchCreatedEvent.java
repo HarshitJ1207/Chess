@@ -6,5 +6,6 @@ public record MatchCreatedEvent(
         UUID gameId,
         String whitePlayerId,
         String blackPlayerId,
-        String timeControl
+        String timeControl,
+        String gameServiceUri
 ) {}

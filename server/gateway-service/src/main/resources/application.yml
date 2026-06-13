@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: gateway-service
+  data:
+    redis:
+      host: redis
+      port: 6379
   cloud:
     gateway:
       routes:
@@ -30,6 +34,7 @@ spring:
             - Path=/ws/game/**
           filters:
             - JwtValidationFilter
+            - GameRoutingFilter
 
         - id: ratings
           uri: lb://RATING-SERVICE

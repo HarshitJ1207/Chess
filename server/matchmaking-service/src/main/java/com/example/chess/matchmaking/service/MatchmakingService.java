@@ -5,11 +5,14 @@ import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -20,9 +23,11 @@ public class MatchmakingService {
     private static final String QUEUE_KEY_PREFIX = "queue:";
     private static final String PENDING_MATCH_PREFIX = "pending_match:";
     private static final String MATCH_CREATED_TOPIC = "match-created";
+    private static final String GAME_SERVICE_NAME = "GAME-SERVICE";
 
     private final StringRedisTemplate redis;
     private final KafkaTemplate<String, MatchCreatedEvent> kafkaTemplate;
+    private final DiscoveryClient discoveryClient;
 
     @Value("${matchmaking.elo-range:200}")
     private int eloRange;
@@ -75,8 +80,16 @@ public class MatchmakingService {
         String whiteId = requesterIsWhite ? requesterId : opponentId;
         String blackId = requesterIsWhite ? opponentId : requesterId;
 
+        // Pin both players to same game-service instance (consistent hash by gameId)
+        List<ServiceInstance> instances = discoveryClient.getInstances(GAME_SERVICE_NAME);
+        if (instances.isEmpty()) {
+            throw new RuntimeException("No game-service instances available");
+        }
+        ServiceInstance target = instances.get(Math.abs(gameId.hashCode()) % instances.size());
+        String gameServiceUri = target.getUri().toString();
+
         kafkaTemplate.send(MATCH_CREATED_TOPIC, gameId.toString(),
-                new MatchCreatedEvent(gameId, whiteId, blackId, timeControl));
+                new MatchCreatedEvent(gameId, whiteId, blackId, timeControl, gameServiceUri));
 
         // Store match result for the opponent so their next poll picks it up
         String opponentColor = requesterIsWhite ? "black" : "white";
