@@ -55,16 +55,19 @@ These are non-negotiable constraints. Apply them to every code change.
 
 ### `matchmaking-service`
 - **Owns:** Redis Sorted Sets — key `queue:{time_control}`, member `player_id`, score `elo_rating`.
-- **Consumes:** Player queue-entry requests (WebSocket or REST long-poll).
-- **Produces:** `MatchCreatedEvent` → `match-created` Kafka topic (fields: `gameId`, `whitePlayerId`, `blackPlayerId`, `timeControl`).
-- **Eureka rule:** When provisioning a new game, do NOT use a load-balanced client. Query `DiscoveryClient` directly to pin both players to the same `game-service` instance (same JVM memory space).
+- **Exposes:** `POST /api/matchmaking/queue` (join queue), `DELETE /api/matchmaking/dequeue` (leave queue).
+- **Background job:** Scheduler runs every 10 seconds, loads queue snapshot, pairs adjacent players within ELO range (greedy algorithm).
+- **Produces:** `MatchRequest` → `match-request` Kafka topic (fields: `player1Id`, `player2Id`, `timeControl`). Partition key: `sorted(player1Id, player2Id)` for deterministic routing.
+- **Rule:** Does NOT assign colors or create game IDs. Only pairs players and publishes requests.
 
 ### `game-service`
-- **Owns:** Volatile JVM `ConcurrentHashMap` (active games) + Redis list per game (move log via `RPUSH` for crash recovery).
-- **Consumes:** `MatchCreatedEvent` (instantiates game in memory).
+- **Owns:** Volatile JVM `ConcurrentHashMap` (active games) + Redis active games registry + Redis list per game (move log via `RPUSH` for crash recovery).
+- **Consumes:** `MatchRequest` → Creates `gameId`, flips coin for colors, creates game in RAM, adds to registry with SETNX atomic claim.
+- **Registry management:** Creates `active_games` set, `player:{id}:game` mappings, `game:{id}` metadata hash on game creation. Removes all on game conclusion.
 - **WebSocket endpoint:** `/ws/game/{gameId}` — multiplexed for moves, chat, draw offers, heartbeats via `type` envelope field.
 - **Produces:** `GameConcludedEvent` → `game-concluded` Kafka topic (fields: `gameId`, `whitePlayerId`, `blackPlayerId`, `result`, `termination`, `moves[]`).
-- **Resiliency:** Every valid move triggers a non-blocking `RPUSH` to Redis. On restart, rebuild state from Redis log.
+- **Resiliency:** Every valid move triggers a non-blocking `RPUSH` to Redis. On restart, rebuild registry from in-memory games.
+- **Idempotency:** Uses Redis SETNX to atomically claim both players before creating game. If either player already in game, abort and rollback.
 
 ### `rating-service`
 - **Owns:** `rating_db` — `player_ratings` table (Glicko-2 vectors: `player_id`, `rating`, `rating_deviation`, `volatility`) + Redis ZSET `leaderboard`.

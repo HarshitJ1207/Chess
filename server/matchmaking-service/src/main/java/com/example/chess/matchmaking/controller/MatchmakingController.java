@@ -21,8 +21,8 @@ public class MatchmakingController {
         return ResponseEntity.ok(matchmakingService.joinQueue(userId, request));
     }
 
-    @DeleteMapping("/queue/{timeControl}")
-    public ResponseEntity<Void> leaveQueue(@PathVariable String timeControl,
+    @DeleteMapping("/dequeue")
+    public ResponseEntity<Void> leaveQueue(@RequestParam String timeControl,
                                            @RequestHeader("X-User-ID") String userId) {
         matchmakingService.leaveQueue(userId, timeControl);
         return ResponseEntity.noContent().build();

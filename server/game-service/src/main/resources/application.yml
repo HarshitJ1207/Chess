@@ -16,9 +16,9 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        # matchmaking publishes without type headers, so bind every value to this type.
+        # matchmaking publishes without type headers, so bind every value to MatchRequest
         spring.json.trusted.packages: "com.example.chess.game.dto"
-        spring.json.value.default.type: com.example.chess.game.dto.MatchCreatedEvent
+        spring.json.value.default.type: com.example.chess.game.dto.MatchRequest
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

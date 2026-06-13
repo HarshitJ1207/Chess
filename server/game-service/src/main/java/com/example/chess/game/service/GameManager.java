@@ -15,13 +15,18 @@ import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.move.Move;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -49,13 +54,128 @@ public class GameManager {
     private final GameSessionRegistry registry;
     private final GameMessages messages;
 
+    @Value("${spring.application.name}")
+    private String instanceId;
+
+    @Value("${server.port}")
+    private int serverPort;
+
     public GameState get(String gameId) {
         return games.get(gameId);
     }
 
+    private String getInstanceId() {
+        return instanceId;
+    }
+
+    private String buildInstanceUri() {
+        // In production, use actual hostname/IP from Eureka
+        // For now, use localhost:port
+        return "http://localhost:" + serverPort;
+    }
+
     // ── Lifecycle ────────────────────────────────────────────────────────────────
 
-    /** Instantiate a game in memory from a match event. Idempotent on gameId. */
+    /**
+     * Instantiate a game in memory from a match request.
+     *
+     * ATOMIC CLAIM: Uses Redis SETNX to atomically claim both players before creating game.
+     * If either player is already in a game, aborts and rolls back.
+     *
+     * INVARIANT: Registry ⊆ RAM. Game must exist in RAM before being added to registry.
+     */
+    public void createGameFromMatchRequest(com.example.chess.game.dto.MatchRequest request) {
+        String player1Id = request.player1Id();
+        String player2Id = request.player2Id();
+        String timeControl = request.timeControl();
+
+        // Generate unique game ID
+        java.util.UUID gameId = java.util.UUID.randomUUID();
+
+        log.info("Processing match request: {} vs {} (gameId={})", player1Id, player2Id, gameId);
+
+        // STEP 1: Atomic claim of player1 using SETNX
+        Boolean p1Claimed = redis.opsForValue()
+            .setIfAbsent("player:" + player1Id + ":game", gameId.toString(), Duration.ofHours(24));
+
+        if (Boolean.FALSE.equals(p1Claimed)) {
+            log.warn("Player {} already in game, aborting match request", player1Id);
+            return;
+        }
+
+        // STEP 2: Atomic claim of player2 using SETNX
+        Boolean p2Claimed = redis.opsForValue()
+            .setIfAbsent("player:" + player2Id + ":game", gameId.toString(), Duration.ofHours(24));
+
+        if (Boolean.FALSE.equals(p2Claimed)) {
+            log.warn("Player {} already in game, rolling back player {} claim", player2Id, player1Id);
+            // Rollback: Remove player1's claim
+            redis.delete("player:" + player1Id + ":game");
+            return;
+        }
+
+        // STEP 3: Both players claimed successfully! Flip coin for colors
+        boolean player1IsWhite = gameId.getLeastSignificantBits() > 0;
+        String whiteId = player1IsWhite ? player1Id : player2Id;
+        String blackId = player1IsWhite ? player2Id : player1Id;
+
+        log.info("Color assignment: white={}, black={}", whiteId, blackId);
+
+        // STEP 4: Create game in RAM (MUST happen before registry registration!)
+        TimeControl tc = TimeControl.parse(timeControl);
+        GameState game = new GameState(gameId.toString(), whiteId, blackId, tc);
+        game.setLastMoveTimestamp(System.currentTimeMillis());
+        games.put(gameId.toString(), game);
+
+        // STEP 5: Register game in Redis (advertise to Gateway and matchmaking)
+        String finalInstanceId = getInstanceId();
+        String finalInstanceUri = buildInstanceUri();
+        String finalWhiteId = whiteId;
+        String finalBlackId = blackId;
+
+        redis.execute(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations ops) {
+                ops.multi();
+
+                // Add to active games set
+                ops.opsForSet().add("active_games", gameId.toString());
+
+                // Store game metadata
+                Map<String, String> gameData = Map.of(
+                    "gameId", gameId.toString(),
+                    "whiteId", finalWhiteId,
+                    "blackId", finalBlackId,
+                    "timeControl", timeControl,
+                    "instanceId", finalInstanceId,
+                    "instanceUri", finalInstanceUri,
+                    "status", "waiting",
+                    "createdAt", Instant.now().toString()
+                );
+                ops.opsForHash().putAll("game:" + gameId, gameData);
+
+                // Remove both players from matchmaking queue
+                ops.opsForZSet().remove("queue:" + timeControl, player1Id);
+                ops.opsForZSet().remove("queue:" + timeControl, player2Id);
+
+                ops.exec();
+                return null;
+            }
+        });
+
+        // STEP 6: Setup persistence and timeout
+        persistMeta(game);
+        timeoutScheduler.arm(gameId.toString(), game.getWhiteTimeRemaining(), () -> handleTimeout(gameId.toString()));
+
+        log.info("Game {} created: {} (white) vs {} (black), {}",
+            gameId, whiteId, blackId, tc.wire());
+    }
+
+    /**
+     * Instantiate a game in memory from a match event. Idempotent on gameId.
+     * @deprecated Old flow, kept for backwards compatibility during migration.
+     */
+    @Deprecated
     public void createGame(MatchCreatedEvent event) {
         String gameId = event.gameId().toString();
         if (games.containsKey(gameId)) {

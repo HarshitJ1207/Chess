@@ -1,102 +1,171 @@
 package com.example.chess.matchmaking.service;
 
-import com.example.chess.matchmaking.dto.MatchCreatedEvent;
+import com.example.chess.matchmaking.dto.MatchRequest;
 import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.http.HttpStatus;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MatchmakingService {
 
     private static final String QUEUE_KEY_PREFIX = "queue:";
-    private static final String PENDING_MATCH_PREFIX = "pending_match:";
-    private static final String MATCH_CREATED_TOPIC = "match-created";
-    private static final String GAME_SERVICE_NAME = "GAME-SERVICE";
+    private static final String MATCH_REQUEST_TOPIC = "match-request";
+
+    private static final List<String> TIME_CONTROLS = List.of(
+        "bullet-1+0",
+        "blitz-3+0",
+        "blitz-5+0",
+        "rapid-10+0",
+        "rapid-15+10"
+    );
 
     private final StringRedisTemplate redis;
-    private final KafkaTemplate<String, MatchCreatedEvent> kafkaTemplate;
-    private final DiscoveryClient discoveryClient;
+    private final KafkaTemplate<String, MatchRequest> kafkaTemplate;
 
     @Value("${matchmaking.elo-range:200}")
     private int eloRange;
 
+    /**
+     * Player joins or polls the queue.
+     *
+     * First checks if player is already in an active game (via registry).
+     * If in game, returns match details.
+     * Otherwise, adds player to queue and returns queued status.
+     */
     public QueueResponse joinQueue(String playerId, QueueRequest request) {
-        // Check if this player was already matched by someone else's request
-        String pendingKey = PENDING_MATCH_PREFIX + playerId;
-        String pending = redis.opsForValue().getAndDelete(pendingKey);
-        if (pending != null) {
-            // Format: "gameId:color:opponentId"
-            String[] parts = pending.split(":");
-            return QueueResponse.matched(UUID.fromString(parts[0]), parts[1], parts[2]);
-        }
+        // Check if player is already in an active game
+        String gameId = redis.opsForValue().get("player:" + playerId + ":game");
 
-        String queueKey = QUEUE_KEY_PREFIX + request.timeControl();
-        double elo = request.elo();
+        if (gameId != null) {
+            // Verify game is still active
+            Boolean isActive = redis.opsForSet().isMember("active_games", gameId);
 
-        // Find opponent within elo range, excluding the requesting player
-        Set<String> candidates = redis.opsForZSet()
-                .rangeByScore(queueKey, elo - eloRange, elo + eloRange);
+            if (Boolean.TRUE.equals(isActive)) {
+                // Player is in an active game, return match details
+                Map<Object, Object> game = redis.opsForHash().entries("game:" + gameId);
+                String whiteId = (String) game.get("whiteId");
+                String blackId = (String) game.get("blackId");
 
-        String opponentId = candidates == null ? null :
-                candidates.stream()
-                        .filter(id -> !id.equals(playerId))
-                        .findFirst()
-                        .orElse(null);
+                String myColor = whiteId.equals(playerId) ? "white" : "black";
+                String opponentId = myColor.equals("white") ? blackId : whiteId;
 
-        if (opponentId != null) {
-            // Atomically claim the opponent — if another request beat us, ZREM returns 0
-            Long removed = redis.opsForZSet().remove(queueKey, opponentId);
-            if (removed != null && removed > 0) {
-                return createMatch(playerId, opponentId, request.timeControl());
+                return QueueResponse.matched(UUID.fromString(gameId), myColor, opponentId);
+            } else {
+                // Game ended but mapping not cleaned up yet, clean it now
+                redis.delete("player:" + playerId + ":game");
             }
         }
 
-        // No match found — add to queue (or refresh position if already present)
-        redis.opsForZSet().add(queueKey, playerId, elo);
+        // Not in active game, add to queue
+        String queueKey = QUEUE_KEY_PREFIX + request.timeControl();
+        redis.opsForZSet().add(queueKey, playerId, request.elo());
+
         return QueueResponse.queued();
     }
 
+    /**
+     * Player leaves the queue.
+     *
+     * Rejects if player is already in a game.
+     */
     public void leaveQueue(String playerId, String timeControl) {
+        // Check if already in a game
+        String gameId = redis.opsForValue().get("player:" + playerId + ":game");
+
+        if (gameId != null) {
+            Boolean isActive = redis.opsForSet().isMember("active_games", gameId);
+            if (Boolean.TRUE.equals(isActive)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Already in a game");
+            }
+        }
+
+        // Remove from queue
         redis.opsForZSet().remove(QUEUE_KEY_PREFIX + timeControl, playerId);
     }
 
-    private QueueResponse createMatch(String requesterId, String opponentId, String timeControl) {
-        UUID gameId = UUID.randomUUID();
-
-        // Coin-flip: requester is white ~50% of the time
-        boolean requesterIsWhite = gameId.getLeastSignificantBits() > 0;
-        String whiteId = requesterIsWhite ? requesterId : opponentId;
-        String blackId = requesterIsWhite ? opponentId : requesterId;
-
-        // Pin both players to same game-service instance (consistent hash by gameId)
-        List<ServiceInstance> instances = discoveryClient.getInstances(GAME_SERVICE_NAME);
-        if (instances.isEmpty()) {
-            throw new RuntimeException("No game-service instances available");
+    /**
+     * Background job that runs every 10 seconds.
+     *
+     * Loads queue snapshot, pairs adjacent players within ELO range,
+     * and publishes match requests to Kafka.
+     */
+    @Scheduled(fixedDelay = 10000)
+    public void matchPlayers() {
+        for (String timeControl : TIME_CONTROLS) {
+            matchInQueue(timeControl);
         }
-        ServiceInstance target = instances.get(Math.abs(gameId.hashCode()) % instances.size());
-        String gameServiceUri = target.getUri().toString();
-
-        kafkaTemplate.send(MATCH_CREATED_TOPIC, gameId.toString(),
-                new MatchCreatedEvent(gameId, whiteId, blackId, timeControl, gameServiceUri));
-
-        // Store match result for the opponent so their next poll picks it up
-        String opponentColor = requesterIsWhite ? "black" : "white";
-        String pendingValue = gameId + ":" + opponentColor + ":" + requesterId;
-        redis.opsForValue().set(PENDING_MATCH_PREFIX + opponentId, pendingValue, Duration.ofSeconds(30));
-
-        String requesterColor = requesterIsWhite ? "white" : "black";
-        return QueueResponse.matched(gameId, requesterColor, opponentId);
     }
+
+    private void matchInQueue(String timeControl) {
+        String queueKey = QUEUE_KEY_PREFIX + timeControl;
+
+        // Load entire queue snapshot (isolated from concurrent changes)
+        Set<ZSetOperations.TypedTuple<String>> queue =
+            redis.opsForZSet().rangeWithScores(queueKey, 0, -1);
+
+        if (queue == null || queue.size() < 2) {
+            return; // Not enough players
+        }
+
+        // Convert to list sorted by ELO
+        List<Player> players = queue.stream()
+            .map(t -> new Player(t.getValue(), t.getScore().intValue()))
+            .toList();
+
+        // Greedy pairing: pair adjacent players within ELO range
+        for (int i = 0; i < players.size() - 1; i++) {
+            Player p1 = players.get(i);
+            Player p2 = players.get(i + 1);
+
+            if (Math.abs(p1.elo - p2.elo) <= eloRange) {
+                publishMatchRequest(p1.id, p2.id, timeControl);
+                i++; // Skip next player (already paired)
+            }
+        }
+    }
+
+    private void publishMatchRequest(String p1Id, String p2Id, String timeControl) {
+        // Create deterministic partition key (sorted player IDs)
+        String partitionKey = createPartitionKey(p1Id, p2Id);
+
+        // Publish match request (game-service will create gameId and assign colors)
+        MatchRequest request = new MatchRequest(p1Id, p2Id, timeControl);
+
+        kafkaTemplate.send(MATCH_REQUEST_TOPIC, partitionKey, request);
+
+        log.info("Match request published: {} vs {} [key={}] ({})",
+            p1Id, p2Id, partitionKey, timeControl);
+    }
+
+    /**
+     * Create deterministic partition key from two player IDs.
+     *
+     * Sorts alphabetically to ensure (A,B) and (B,A) produce same key.
+     * This ensures same player pair always goes to same Kafka partition.
+     */
+    private String createPartitionKey(String p1, String p2) {
+        if (p1.compareTo(p2) < 0) {
+            return p1 + ":" + p2;
+        } else {
+            return p2 + ":" + p1;
+        }
+    }
+
+    record Player(String id, int elo) {}
 }
