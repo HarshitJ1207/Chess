@@ -35,19 +35,48 @@ services:
       - redpanda
       - start
       - --smp=1
-      - --memory=256M
+      - --memory=512M
       - --reserve-memory=0M
+      - --overprovisioned
       - --node-id=0
       - --kafka-addr=PLAINTEXT://0.0.0.0:9092
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr=0.0.0.0:8083
+      - --advertise-pandaproxy-addr=redpanda:8083
     ports:
       - "9092:9092"
       - "9644:9644"  # Admin API
+      - "18083:8083"  # Pandaproxy HTTP (debug; host port kept off 8083 for game-service)
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # ── Gateway ──────────────────────────────────────────────────────────────────
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      matchmaking-service:
+        condition: service_healthy
+      game-service:
+        condition: service_healthy
+      rating-service:
+        condition: service_healthy
+      history-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Platform services ────────────────────────────────────────────────────────
 
@@ -87,6 +116,11 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET}
       JAVA_OPTS: -Xmx160m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
 
   matchmaking-service:
     build:
@@ -109,6 +143,97 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET}
       JAVA_OPTS: -Xmx160m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  game-service:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: game-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET}
+      JAVA_OPTS: -Xmx256m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  rating-service:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: rating-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rating_db
+      SPRING_DATASOURCE_USERNAME: chess
+      SPRING_DATASOURCE_PASSWORD: chess
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JAVA_OPTS: -Xmx160m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  history-service:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: history-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/history_db
+      SPRING_DATASOURCE_USERNAME: chess
+      SPRING_DATASOURCE_PASSWORD: chess
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JAVA_OPTS: -Xmx160m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
 
 volumes:
   postgres_data:

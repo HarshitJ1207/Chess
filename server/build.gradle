@@ -18,6 +18,8 @@ subprojects {
 
     repositories {
         mavenCentral()
+        // chesslib (bhlangonijr) is published via JitPack, not Maven Central.
+        maven { url 'https://jitpack.io' }
     }
 
     dependencyManagement {

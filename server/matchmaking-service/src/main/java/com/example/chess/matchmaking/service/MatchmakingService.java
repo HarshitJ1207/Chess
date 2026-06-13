@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class MatchmakingService {
 
     private static final String QUEUE_KEY_PREFIX = "queue:";
+    private static final String PENDING_MATCH_PREFIX = "pending_match:";
     private static final String MATCH_CREATED_TOPIC = "match-created";
 
     private final StringRedisTemplate redis;
@@ -26,6 +28,15 @@ public class MatchmakingService {
     private int eloRange;
 
     public QueueResponse joinQueue(String playerId, QueueRequest request) {
+        // Check if this player was already matched by someone else's request
+        String pendingKey = PENDING_MATCH_PREFIX + playerId;
+        String pending = redis.opsForValue().getAndDelete(pendingKey);
+        if (pending != null) {
+            // Format: "gameId:color:opponentId"
+            String[] parts = pending.split(":");
+            return QueueResponse.matched(UUID.fromString(parts[0]), parts[1], parts[2]);
+        }
+
         String queueKey = QUEUE_KEY_PREFIX + request.timeControl();
         double elo = request.elo();
 
@@ -67,7 +78,12 @@ public class MatchmakingService {
         kafkaTemplate.send(MATCH_CREATED_TOPIC, gameId.toString(),
                 new MatchCreatedEvent(gameId, whiteId, blackId, timeControl));
 
-        String color = requesterIsWhite ? "white" : "black";
-        return QueueResponse.matched(gameId, color, opponentId);
+        // Store match result for the opponent so their next poll picks it up
+        String opponentColor = requesterIsWhite ? "black" : "white";
+        String pendingValue = gameId + ":" + opponentColor + ":" + requesterId;
+        redis.opsForValue().set(PENDING_MATCH_PREFIX + opponentId, pendingValue, Duration.ofSeconds(30));
+
+        String requesterColor = requesterIsWhite ? "white" : "black";
+        return QueueResponse.matched(gameId, requesterColor, opponentId);
     }
 }

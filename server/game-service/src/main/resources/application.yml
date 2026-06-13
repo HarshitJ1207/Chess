@@ -1,0 +1,43 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: game-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: game-service
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        # matchmaking publishes without type headers, so bind every value to this type.
+        spring.json.trusted.packages: "com.example.chess.game.dto"
+        spring.json.value.default.type: com.example.chess.game.dto.MatchCreatedEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+jwt:
+  # Shared HMAC secret — must match auth-service. Base64, ≥256 bits.
+  secret: ${JWT_SECRET:THK0uahmITVIkLbJPqp6cGXbFrjvcS4MTFLM9+ybESM=}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

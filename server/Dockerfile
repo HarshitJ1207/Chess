@@ -11,6 +11,10 @@ ARG SERVICE_NAME
 COPY eureka-server/build.gradle eureka-server/
 COPY auth-service/build.gradle auth-service/
 COPY matchmaking-service/build.gradle matchmaking-service/
+COPY game-service/build.gradle game-service/
+COPY rating-service/build.gradle rating-service/
+COPY history-service/build.gradle history-service/
+COPY shared-security/build.gradle shared-security/
 
 RUN ./gradlew :${SERVICE_NAME}:dependencies --no-daemon -q
 

@@ -3,6 +3,10 @@ plugins {
 }
 
 rootProject.name = 'chess-server'
+include 'shared-security'
 include 'eureka-server'
 include 'auth-service'
 include 'matchmaking-service'
+include 'game-service'
+include 'rating-service'
+include 'history-service'

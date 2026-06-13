@@ -3,7 +3,20 @@
     "allow": [
       "Bash(curl -s http://localhost:8761/eureka/apps)",
       "Bash(curl *)",
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Bash(node scripts/test-game.mjs)",
+      "WebFetch(domain:react-chessboard.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:unpkg.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:react-chessboard.vercel.app)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs cat)",
+      "Bash(docker-compose down *)",
+      "Bash(chmod +x /home/harshit-jain/Desktop/chess/scripts/test-auth.mjs /home/harshit-jain/Desktop/chess/scripts/test-matchmaking.mjs)",
+      "Bash(node *)",
+      "Bash(chmod +x /home/harshit-jain/Desktop/chess/scripts/test-game.mjs)",
+      "Bash(xargs -I {} docker compose exec redis redis-cli DEL {})"
     ]
   }
 }
