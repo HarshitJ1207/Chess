@@ -50,8 +50,8 @@ These are non-negotiable constraints. Apply them to every code change.
 
 ### `auth-service`
 - **Owns:** `auth_db` — `users` table (identity metadata) + `credentials` table (password hashes).
-- **Exposes:** `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/validate` (used by peer services for token verification).
-- **Rule:** Stateless JWT issuance. B-tree index on `username`.
+- **Exposes:** `POST /api/auth/register`, `POST /api/auth/login`.
+- **Rule:** Stateless JWT issuance. Gateway validates JWTs locally using shared secret (HMAC-SHA256). B-tree index on `username`.
 
 ### `matchmaking-service`
 - **Owns:** Redis Sorted Sets — key `queue:{time_control}`, member `player_id`, score `elo_rating`.

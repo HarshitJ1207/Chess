@@ -3,13 +3,11 @@ package com.example.chess.auth.service;
 import com.example.chess.auth.dto.AuthResponse;
 import com.example.chess.auth.dto.LoginRequest;
 import com.example.chess.auth.dto.RegisterRequest;
-import com.example.chess.auth.dto.ValidateResponse;
 import com.example.chess.auth.entity.Credentials;
 import com.example.chess.auth.entity.User;
 import com.example.chess.auth.repository.CredentialsRepository;
 import com.example.chess.auth.repository.UserRepository;
 import com.example.chess.auth.security.JwtUtil;
-import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,13 +58,5 @@ public class AuthService {
         }
 
         return new AuthResponse(jwtUtil.generateToken(user), user.getId().toString(), user.getUsername());
-    }
-
-    public ValidateResponse validate(String token) {
-        if (token == null || !jwtUtil.isValid(token)) {
-            return new ValidateResponse(false, null, null);
-        }
-        Claims claims = jwtUtil.parseClaims(token);
-        return new ValidateResponse(true, claims.getSubject(), claims.get("username", String.class));
     }
 }

@@ -75,28 +75,7 @@ async function main() {
   }
   log('pass', `P2 registered (${username2})`);
 
-  // Test 2: Validate both tokens
-  log('test', '2. GET /api/auth/validate (with token 1)');
-  const val1 = await jget(`${AUTH}/api/auth/validate`, token1);
-  if (val1.status !== 200) {
-    throw new Error(`expected 200, got ${val1.status}`);
-  }
-  if (!val1.json.valid || val1.json.userId !== userId1) {
-    throw new Error(`validate response incorrect: ${JSON.stringify(val1.json)}`);
-  }
-  log('pass', `P1 token valid`);
-
-  log('test', '2b. GET /api/auth/validate (with token 2)');
-  const val2 = await jget(`${AUTH}/api/auth/validate`, token2);
-  if (val2.status !== 200) {
-    throw new Error(`expected 200, got ${val2.status}`);
-  }
-  if (!val2.json.valid || val2.json.userId !== userId2) {
-    throw new Error(`validate response incorrect: ${JSON.stringify(val2.json)}`);
-  }
-  log('pass', `P2 token valid`);
-
-  // Test 3: Login with correct credentials
+  // Test 2: Login with correct credentials
   log('test', '3. POST /api/auth/login (P1 correct creds)');
   const login1 = await jpost(`${AUTH}/api/auth/login`, { username: P1.username, password: P1.password });
   if (login1.status !== 200) {
@@ -117,19 +96,8 @@ async function main() {
   }
   log('pass', `P2 login successful`);
 
-  // Test 4: Validate with invalid/expired token
-  log('test', '4. GET /api/auth/validate (with invalid token)');
-  const valBad = await jget(`${AUTH}/api/auth/validate`, 'invalid.token.here');
-  if (valBad.status !== 200) {
-    throw new Error(`expected 200, got ${valBad.status}`);
-  }
-  if (valBad.json.valid !== false || valBad.json.userId !== null) {
-    throw new Error(`expected valid=false for invalid token: ${JSON.stringify(valBad.json)}`);
-  }
-  log('pass', `invalid token correctly rejected`);
-
-  console.log('\n✅ PASS — auth-service boundary:');
-  console.log('   register (2 users) → validate (both tokens) → login (correct creds) → invalid token');
+  console.log('\n✅ PASS — auth-service:');
+  console.log('   register (2 users) → login (correct creds)');
   process.exit(0);
 }
 

@@ -16,11 +16,6 @@ spring:
           predicates:
             - Path=/api/auth/register,/api/auth/login
 
-        - id: auth-validate
-          uri: lb://AUTH-SERVICE
-          predicates:
-            - Path=/api/auth/validate
-
         - id: matchmaking
           uri: lb://MATCHMAKING-SERVICE
           predicates:
