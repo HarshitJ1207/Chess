@@ -88,5 +88,27 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JAVA_OPTS: -Xmx160m
 
+  matchmaking-service:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: matchmaking-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET}
+      JAVA_OPTS: -Xmx160m
+
 volumes:
   postgres_data:

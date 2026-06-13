@@ -10,6 +10,7 @@ ARG SERVICE_NAME
 # multi-module project — even when only building one service.
 COPY eureka-server/build.gradle eureka-server/
 COPY auth-service/build.gradle auth-service/
+COPY matchmaking-service/build.gradle matchmaking-service/
 
 RUN ./gradlew :${SERVICE_NAME}:dependencies --no-daemon -q
 

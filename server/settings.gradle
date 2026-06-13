@@ -5,3 +5,4 @@ plugins {
 rootProject.name = 'chess-server'
 include 'eureka-server'
 include 'auth-service'
+include 'matchmaking-service'
