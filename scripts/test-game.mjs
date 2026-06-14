@@ -53,7 +53,7 @@ async function register(p) {
 }
 
 async function queue(token, elo) {
-  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: '180+2', elo }, token);
+  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: 'rapid-10+0', elo }, token);
   if (r.status !== 200) throw new Error(`queue failed: ${r.status} ${JSON.stringify(r.json)}`);
   return r.json;
 }
@@ -125,11 +125,24 @@ async function main() {
 
   const concludedBefore = await kafkaWatermark('game-concluded');
 
-  // p1 queues first (QUEUED), p2 queues second (MATCHED).
+  // p1 queues first (QUEUED), p2 queues second (will be QUEUED, must poll for MATCHED).
   const q1 = await queue(a1.token, 1500);
   log('mm', 'p1 →', JSON.stringify(q1));
-  const q2 = await queue(a2.token, 1500);
+  let q2 = await queue(a2.token, 1500);
   log('mm', 'p2 →', JSON.stringify(q2));
+
+  // Poll until p2 is MATCHED (batch job runs every 10s, max 30 attempts)
+  if (q2.status === 'QUEUED') {
+    log('mm', 'polling for match...');
+    for (let attempt = 1; attempt <= 30; attempt++) {
+      await sleep(1000);
+      q2 = await queue(a2.token, 1500);
+      if (q2.status === 'MATCHED') {
+        log('mm', `MATCHED after ${attempt}s`);
+        break;
+      }
+    }
+  }
 
   if (q2.status !== 'MATCHED') throw new Error(`expected p2 MATCHED, got ${q2.status}`);
   const gameId = q2.gameId;

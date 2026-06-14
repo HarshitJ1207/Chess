@@ -63,7 +63,7 @@ async function register(p) {
 }
 
 async function queue(token, elo) {
-  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: '180+2', elo }, token);
+  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: 'rapid-10+0', elo }, token);
   if (r.status !== 200) throw new Error(`queue failed: ${r.status} ${JSON.stringify(r.json)}`);
   return r.json;
 }
@@ -88,9 +88,28 @@ async function main() {
   }
   log('pass', `P1 is QUEUED (no match yet)`);
 
-  // Test 2: P2 queues (should be MATCHED)
+  // Test 2: P2 queues (should eventually be MATCHED after batch job runs)
   log('test', '2. P2 queues 180+2 @ 1500 ELO');
-  const q2 = await queue(a2.token, 1500);
+  let q2 = await queue(a2.token, 1500);
+
+  // Batch job runs every 10 seconds, so poll until MATCHED (max 30 attempts, 1 sec interval)
+  if (q2.status === 'QUEUED') {
+    log('test', '2b. Polling for match (batch job runs every 10s)...');
+    let matched = false;
+    for (let attempt = 1; attempt <= 30; attempt++) {
+      await sleep(1000);
+      q2 = await queue(a2.token, 1500);
+      if (q2.status === 'MATCHED') {
+        log('pass', `MATCHED after ${attempt}s`);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      throw new Error(`P2 still QUEUED after 30s polling (batch job didn't run?)`);
+    }
+  }
+
   if (q2.status !== 'MATCHED') {
     throw new Error(`expected MATCHED, got ${q2.status}`);
   }
@@ -113,8 +132,8 @@ async function main() {
   }
   log('pass', `P3 is QUEUED`);
 
-  log('test', '3b. P3 calls DELETE /api/matchmaking/queue/180+2');
-  const del = await jdelete(`${MM}/api/matchmaking/queue/180+2`, a3.token);
+  log('test', '3b. P3 calls DELETE /api/matchmaking/dequeue?timeControl=rapid-10+0');
+  const del = await jdelete(`${MM}/api/matchmaking/dequeue?timeControl=rapid-10+0`, a3.token);
   if (del.status !== 204) {
     throw new Error(`expected DELETE to return 204, got ${del.status} ${JSON.stringify(del.json)}`);
   }
