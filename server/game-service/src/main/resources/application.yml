@@ -25,10 +25,6 @@ spring:
       properties:
         spring.json.add.type.headers: false
 
-jwt:
-  # Shared HMAC secret — must match auth-service. Base64, ≥256 bits.
-  secret: ${JWT_SECRET:THK0uahmITVIkLbJPqp6cGXbFrjvcS4MTFLM9+ybESM=}
-
 eureka:
   client:
     service-url:
