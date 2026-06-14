@@ -73,7 +73,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 int action = d.path("a").asInt(d.path("action").asInt(0));
                 // Handshake step 2: immediate ACK before validation.
                 registry.sendQuietly(session, messages.ack(action));
-                gameManager.applyMove(gameId, playerId, session, uci, 0L);
+                gameManager.applyMove(gameId, playerId, session, uci);
             }
             case "chat" -> {
                 String text = firstNonEmpty(d.path("msg").asText(""), d.path("text").asText(""));

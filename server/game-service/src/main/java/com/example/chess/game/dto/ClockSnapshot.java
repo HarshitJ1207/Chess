@@ -5,7 +5,5 @@ package com.example.chess.game.dto;
  *
  * @param white seconds remaining for white
  * @param black seconds remaining for black
- * @param lag   milliseconds refunded to the mover for network latency before these
- *              balances were compiled (hard-capped at 400ms)
  */
-public record ClockSnapshot(double white, double black, long lag) {}
+public record ClockSnapshot(double white, double black) {}

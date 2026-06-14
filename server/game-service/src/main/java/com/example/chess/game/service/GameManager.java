@@ -1,6 +1,8 @@
 package com.example.chess.game.service;
 
 import com.example.chess.game.dto.GameConcludedEvent;
+import com.example.chess.game.dto.MatchRequest;
+import com.example.chess.game.dto.PlayerGameMetadata;
 import com.example.chess.game.model.ChatMessage;
 import com.example.chess.game.model.GameState;
 import com.example.chess.game.model.GameStatus;
@@ -74,7 +76,7 @@ public class GameManager {
      *
      * INVARIANT: Registry ⊆ RAM. Game must exist in RAM before being added to registry.
      */
-    public void createGameFromMatchRequest(com.example.chess.game.dto.MatchRequest request) {
+    public void createGameFromMatchRequest(MatchRequest request) {
         String player1Id = request.player1Id();
         String player2Id = request.player2Id();
         String timeControl = request.timeControl();
@@ -91,37 +93,57 @@ public class GameManager {
 
         log.info("Color assignment: white={}, black={}", whiteId, blackId);
 
-        // STEP 2: Build JSON metadata for both players
+        // STEP 2: Build metadata for both players
         String finalInstanceUri = buildInstanceUri();
-        String whiteMetadata = """
-            {"gameId":"%s","myColor":"white","opponentId":"%s","timeControl":"%s","instanceUri":"%s"}
-            """.formatted(gameId, blackId, timeControl, finalInstanceUri).strip();
-        String blackMetadata = """
-            {"gameId":"%s","myColor":"black","opponentId":"%s","timeControl":"%s","instanceUri":"%s"}
-            """.formatted(gameId, whiteId, timeControl, finalInstanceUri).strip();
+
+        PlayerGameMetadata whiteMetadata = new PlayerGameMetadata(
+            gameId.toString(),
+            "white",
+            blackId,
+            timeControl,
+            finalInstanceUri
+        );
+
+        PlayerGameMetadata blackMetadata = new PlayerGameMetadata(
+            gameId.toString(),
+            "black",
+            whiteId,
+            timeControl,
+            finalInstanceUri
+        );
 
         // STEP 3: Atomic claim of both players using SETNX
-        Boolean p1Claimed = redis.opsForValue()
-            .setIfAbsent("player:" + whiteId + ":game", whiteMetadata, Duration.ofHours(24));
+        try {
+            String whiteJson = mapper.writeValueAsString(whiteMetadata);
+            String blackJson = mapper.writeValueAsString(blackMetadata);
 
-        if (Boolean.FALSE.equals(p1Claimed)) {
-            log.warn("Player {} already in game, aborting match request", whiteId);
-            return;
-        }
+            Boolean p1Claimed = redis.opsForValue()
+                .setIfAbsent("player:" + whiteId + ":game", whiteJson, Duration.ofHours(24));
 
-        Boolean p2Claimed = redis.opsForValue()
-            .setIfAbsent("player:" + blackId + ":game", blackMetadata, Duration.ofHours(24));
+            if (Boolean.FALSE.equals(p1Claimed)) {
+                log.warn("Player {} already in game, aborting match request", whiteId);
+                return;
+            }
 
-        if (Boolean.FALSE.equals(p2Claimed)) {
-            log.warn("Player {} already in game, rolling back player {} claim", blackId, whiteId);
-            // Rollback: Remove player1's claim
-            redis.delete("player:" + whiteId + ":game");
+            Boolean p2Claimed = redis.opsForValue()
+                .setIfAbsent("player:" + blackId + ":game", blackJson, Duration.ofHours(24));
+
+            if (Boolean.FALSE.equals(p2Claimed)) {
+                log.warn("Player {} already in game, rolling back player {} claim", blackId, whiteId);
+                redis.delete("player:" + whiteId + ":game");
+                return;
+            }
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize player metadata for game {}", gameId, e);
             return;
         }
 
         // STEP 4: Create game in RAM
         TimeControl tc = TimeControl.parse(timeControl);
         GameState game = new GameState(gameId.toString(), whiteId, blackId, tc);
+
+        // TODO: whites clock starts running the moment the game is created
+        // we can follow a lichess like approach, the clock only starts running when both players make their first move. 
         game.setLastMoveTimestamp(System.currentTimeMillis());
         games.put(gameId.toString(), game);
 
@@ -146,7 +168,7 @@ public class GameManager {
      * persistence, and the broadcast. Errors go back only to the mover.
      */
     public void applyMove(String gameId, String playerId, WebSocketSession moverSession,
-                          String uci, long lagMs) {
+                          String uci) {
         GameState game = games.get(gameId);
         if (game == null) {
             registry.sendQuietly(moverSession, messages.error("NO_GAME", "Unknown game"));
@@ -167,6 +189,7 @@ public class GameManager {
                 return;
             }
 
+            // TODO: TELL DONT ASK. LAW OF DEMETER
             Board board = game.getBoard();
             Move move;
             try {
@@ -213,7 +236,7 @@ public class GameManager {
             // game:{id}:meta + game:{id}:moves from Redis and rebuild in-memory state.
             // Implement after gateway affinity (game:{id}:instance) is wired up.
             persistMove(gameId, rec);
-            registry.broadcast(gameId, messages.move(game, rec, 0L));
+            registry.broadcast(gameId, messages.move(game, rec));
 
             // ── End-of-game detection ──
             GameStatus end = detectEnd(board, moverColor);

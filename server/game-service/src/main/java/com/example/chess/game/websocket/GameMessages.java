@@ -73,13 +73,13 @@ public class GameMessages {
     }
 
     /** Authoritative move broadcast to both players. */
-    public TextMessage move(GameState g, MoveRecord m, long lagMs) {
+    public TextMessage move(GameState g, MoveRecord m) {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("uci", m.uci());
         d.put("san", m.san());
         d.put("fen", m.fen());
         d.put("ply", m.ply());
-        d.put("clock", new ClockSnapshot(m.whiteRemaining(), m.blackRemaining(), lagMs));
+        d.put("clock", new ClockSnapshot(m.whiteRemaining(), m.blackRemaining()));
         Map<String, Object> e = env("move");
         e.put("v", m.ply());
         e.put("d", d);
