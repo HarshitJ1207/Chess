@@ -8,12 +8,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api/auth': 'http://localhost:8081',
-      '/api/matchmaking': 'http://localhost:8082',
-      '/api/ratings': 'http://localhost:8084',
-      '/api/history': 'http://localhost:8085',
-      '/ws/game': {
-        target: 'ws://localhost:8083',
+      '/api': 'http://localhost:8080',
+      '/ws': {
+        target: 'ws://localhost:8080',
         ws: true,
       },
     },

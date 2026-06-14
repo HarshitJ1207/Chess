@@ -112,8 +112,8 @@ export default function GamePage() {
           chessRef.current.load(msg.d.fen);
         }
         if (msg.d.clock) {
-          sync(msg.d.clock, msg.d.activeColor ?? 'white');
-          setActiveColor(msg.d.activeColor ?? 'white');
+          sync(msg.d.clock, msg.d.turn ?? 'white');
+          setActiveColor(msg.d.turn ?? 'white');
         }
         if (msg.d.moves) setSanMoves(msg.d.moves.map(m => (typeof m === 'string' ? m : (m?.san ?? m?.uci ?? JSON.stringify(m)))));
         break;
@@ -124,9 +124,9 @@ export default function GamePage() {
         setFen(d.fen);
         setSelectedSquare(null);
         setLegalSquares([]);
-        const newActive = chessRef.current.turn() === 'w' ? 'white' : 'black';
-        setActiveColor(newActive);
-        if (d.clock) sync(d.clock, newActive);
+        const nextActive = d.ply % 2 === 0 ? 'white' : 'black';
+        setActiveColor(nextActive);
+        if (d.clock) sync(d.clock, nextActive);
         if (d.san) {
           const san = typeof d.san === 'string' ? d.san : (d.san?.san ?? d.san?.uci ?? JSON.stringify(d.san));
           setSanMoves((prev) => [...prev, san]);
@@ -134,11 +134,15 @@ export default function GamePage() {
         break;
       }
       case 'chat': {
-        setChatMessages((prev) => [...prev, { user: msg.d.username, text: msg.d.text }]);
+        setChatMessages((prev) => [...prev, { user: msg.d.color, text: msg.d.msg }]);
         break;
       }
-      case 'draw_offer': {
-        setOpponentDrawOffer(true);
+      case 'draw': {
+        if (msg.d.action === 'offer') {
+          setOpponentDrawOffer(true);
+        } else if (msg.d.action === 'declined') {
+          setDrawOffered(false);
+        }
         break;
       }
       case 'end': {
@@ -239,17 +243,17 @@ export default function GamePage() {
 
   function handleDrawOffer() {
     setDrawOffered(true);
-    send({ t: 'draw_offer' });
+    send({ t: 'draw', d: { action: 'offer' } });
   }
 
   function handleDrawAccept() {
     setOpponentDrawOffer(false);
-    send({ t: 'draw_accept' });
+    send({ t: 'draw', d: { action: 'accept' } });
   }
 
   function handleDrawDecline() {
     setOpponentDrawOffer(false);
-    send({ t: 'draw_decline' });
+    send({ t: 'draw', d: { action: 'declined' } });
   }
 
   function handleChatSend(text) {

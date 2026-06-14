@@ -6,17 +6,17 @@ import { api } from '../api';
 import { useAuthStore } from '../store';
 
 const TIME_CONTROLS = [
-  { label: '1+0', value: '60+0' },
-  { label: '3+0', value: '180+0' },
-  { label: '3+2', value: '180+2' },
-  { label: '5+0', value: '300+0' },
-  { label: '10+0', value: '600+0' },
+  { label: '1+0', value: '1+0' },
+  { label: '3+0', value: '3+0' },
+  { label: '5+0', value: '5+0' },
+  { label: '10+0', value: '10+0' },
+  { label: '15+10', value: '15+10' },
 ];
 
 export default function QueuePage() {
   const navigate = useNavigate();
   const { token, userId } = useAuthStore();
-  const [tc, setTc] = useState('180+2');
+  const [tc, setTc] = useState('10+0');
   const [waitSecs, setWaitSecs] = useState(0);
   const [queued, setQueued] = useState(false);
 
@@ -30,7 +30,7 @@ export default function QueuePage() {
     mutationFn: () => api.queue({ timeControl: tc, elo: 1500 }, token),
     onSuccess: (data) => {
       if (data.status === 'MATCHED') {
-        navigate(`/game/${data.gameId}`);
+        navigate(`/game/${data.gameId}`, { state: { color: data.color } });
       } else {
         setQueued(true);
         poll(data);
@@ -49,7 +49,7 @@ export default function QueuePage() {
         const r = await api.queue({ timeControl: tc, elo: 1500 }, token);
         if (r.status === 'MATCHED') {
           clearInterval(interval);
-          navigate(`/game/${r.gameId}`);
+          navigate(`/game/${r.gameId}`, { state: { color: r.color } });
         }
       } catch {
         // keep polling
