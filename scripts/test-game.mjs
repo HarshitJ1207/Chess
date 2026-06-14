@@ -53,7 +53,7 @@ async function register(p) {
 }
 
 async function queue(token, elo) {
-  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: 'rapid-10+0', elo }, token);
+  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: '10+0', elo }, token);
   if (r.status !== 200) throw new Error(`queue failed: ${r.status} ${JSON.stringify(r.json)}`);
   return r.json;
 }

@@ -63,7 +63,7 @@ async function register(p) {
 }
 
 async function queue(token, elo) {
-  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: 'rapid-10+0', elo }, token);
+  const r = await jpost(`${MM}/api/matchmaking/queue`, { timeControl: '10+0', elo }, token);
   if (r.status !== 200) throw new Error(`queue failed: ${r.status} ${JSON.stringify(r.json)}`);
   return r.json;
 }
@@ -132,8 +132,8 @@ async function main() {
   }
   log('pass', `P3 is QUEUED`);
 
-  log('test', '3b. P3 calls DELETE /api/matchmaking/dequeue?timeControl=rapid-10+0');
-  const del = await jdelete(`${MM}/api/matchmaking/dequeue?timeControl=rapid-10+0`, a3.token);
+  log('test', '3b. P3 calls DELETE /api/matchmaking/dequeue?timeControl=10+0');
+  const del = await jdelete(`${MM}/api/matchmaking/dequeue?timeControl=10+0`, a3.token);
   if (del.status !== 204) {
     throw new Error(`expected DELETE to return 204, got ${del.status} ${JSON.stringify(del.json)}`);
   }

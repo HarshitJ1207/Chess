@@ -3,6 +3,8 @@ package com.example.chess.matchmaking.service;
 import com.example.chess.matchmaking.dto.MatchRequest;
 import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,15 +29,16 @@ public class MatchmakingService {
     private static final String MATCH_REQUEST_TOPIC = "match-request";
 
     private static final List<String> TIME_CONTROLS = List.of(
-        "bullet-1+0",
-        "blitz-3+0",
-        "blitz-5+0",
-        "rapid-10+0",
-        "rapid-15+10"
+        "1+0",
+        "3+0",
+        "5+0",
+        "10+0",
+        "15+10"
     );
 
     private final StringRedisTemplate redis;
     private final KafkaTemplate<String, MatchRequest> kafkaTemplate;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${matchmaking.elo-range:200}")
     private int eloRange;
@@ -44,30 +46,26 @@ public class MatchmakingService {
     /**
      * Player joins or polls the queue.
      *
-     * First checks if player is already in an active game (via registry).
+     * First checks if player is already in an active game (via Redis player key).
      * If in game, returns match details.
      * Otherwise, adds player to queue and returns queued status.
      */
     public QueueResponse joinQueue(String playerId, QueueRequest request) {
         // Check if player is already in an active game
-        String gameId = redis.opsForValue().get("player:" + playerId + ":game");
+        String playerGameJson = redis.opsForValue().get("player:" + playerId + ":game");
 
-        if (gameId != null) {
-            // Verify game is still active
-            Boolean isActive = redis.opsForSet().isMember("active_games", gameId);
-
-            if (Boolean.TRUE.equals(isActive)) {
-                // Player is in an active game, return match details
-                Map<Object, Object> game = redis.opsForHash().entries("game:" + gameId);
-                String whiteId = (String) game.get("whiteId");
-                String blackId = (String) game.get("blackId");
-
-                String myColor = whiteId.equals(playerId) ? "white" : "black";
-                String opponentId = myColor.equals("white") ? blackId : whiteId;
+        if (playerGameJson != null) {
+            try {
+                // Parse JSON to extract game details
+                // JSON format: {"gameId":"...", "myColor":"white", "opponentId":"...", "timeControl":"...", "instanceUri":"..."}
+                JsonNode node = mapper.readTree(playerGameJson);
+                String gameId = node.get("gameId").asText();
+                String myColor = node.get("myColor").asText();
+                String opponentId = node.get("opponentId").asText();
 
                 return QueueResponse.matched(UUID.fromString(gameId), myColor, opponentId);
-            } else {
-                // Game ended but mapping not cleaned up yet, clean it now
+            } catch (Exception e) {
+                // JSON parse failed — stale entry, clean it up
                 redis.delete("player:" + playerId + ":game");
             }
         }
@@ -86,12 +84,18 @@ public class MatchmakingService {
      */
     public void leaveQueue(String playerId, String timeControl) {
         // Check if already in a game
-        String gameId = redis.opsForValue().get("player:" + playerId + ":game");
+        String playerGameJson = redis.opsForValue().get("player:" + playerId + ":game");
 
-        if (gameId != null) {
-            Boolean isActive = redis.opsForSet().isMember("active_games", gameId);
-            if (Boolean.TRUE.equals(isActive)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Already in a game");
+        if (playerGameJson != null) {
+            try {
+                // Try to parse JSON — if valid, player is in an active game
+                JsonNode node = mapper.readTree(playerGameJson);
+                if (node.has("gameId")) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Already in a game");
+                }
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                // Not JSON — stale entry, clean it up
+                redis.delete("player:" + playerId + ":game");
             }
         }
 

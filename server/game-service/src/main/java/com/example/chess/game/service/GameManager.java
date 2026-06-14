@@ -1,7 +1,6 @@
 package com.example.chess.game.service;
 
 import com.example.chess.game.dto.GameConcludedEvent;
-import com.example.chess.game.dto.MatchCreatedEvent;
 import com.example.chess.game.model.ChatMessage;
 import com.example.chess.game.model.GameState;
 import com.example.chess.game.model.GameStatus;
@@ -16,15 +15,11 @@ import com.github.bhlangonijr.chesslib.move.Move;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisOperations;
-import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,10 +34,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class GameManager {
-
-    /** Hard ceiling on lag refund per move, regardless of measured latency (anti-cheat). */
-    private static final long MAX_LAG_REFUND_MS = 400;
-    private static final String ACTIVE_SET = "games:active";
 
     private final ConcurrentHashMap<String, GameState> games = new ConcurrentHashMap<>();
 
@@ -93,74 +84,50 @@ public class GameManager {
 
         log.info("Processing match request: {} vs {} (gameId={})", player1Id, player2Id, gameId);
 
-        // STEP 1: Atomic claim of player1 using SETNX
-        Boolean p1Claimed = redis.opsForValue()
-            .setIfAbsent("player:" + player1Id + ":game", gameId.toString(), Duration.ofHours(24));
-
-        if (Boolean.FALSE.equals(p1Claimed)) {
-            log.warn("Player {} already in game, aborting match request", player1Id);
-            return;
-        }
-
-        // STEP 2: Atomic claim of player2 using SETNX
-        Boolean p2Claimed = redis.opsForValue()
-            .setIfAbsent("player:" + player2Id + ":game", gameId.toString(), Duration.ofHours(24));
-
-        if (Boolean.FALSE.equals(p2Claimed)) {
-            log.warn("Player {} already in game, rolling back player {} claim", player2Id, player1Id);
-            // Rollback: Remove player1's claim
-            redis.delete("player:" + player1Id + ":game");
-            return;
-        }
-
-        // STEP 3: Both players claimed successfully! Flip coin for colors
+        // STEP 1: Flip coin for colors
         boolean player1IsWhite = gameId.getLeastSignificantBits() > 0;
         String whiteId = player1IsWhite ? player1Id : player2Id;
         String blackId = player1IsWhite ? player2Id : player1Id;
 
         log.info("Color assignment: white={}, black={}", whiteId, blackId);
 
-        // STEP 4: Create game in RAM (MUST happen before registry registration!)
+        // STEP 2: Build JSON metadata for both players
+        String finalInstanceUri = buildInstanceUri();
+        String whiteMetadata = """
+            {"gameId":"%s","myColor":"white","opponentId":"%s","timeControl":"%s","instanceUri":"%s"}
+            """.formatted(gameId, blackId, timeControl, finalInstanceUri).strip();
+        String blackMetadata = """
+            {"gameId":"%s","myColor":"black","opponentId":"%s","timeControl":"%s","instanceUri":"%s"}
+            """.formatted(gameId, whiteId, timeControl, finalInstanceUri).strip();
+
+        // STEP 3: Atomic claim of both players using SETNX
+        Boolean p1Claimed = redis.opsForValue()
+            .setIfAbsent("player:" + whiteId + ":game", whiteMetadata, Duration.ofHours(24));
+
+        if (Boolean.FALSE.equals(p1Claimed)) {
+            log.warn("Player {} already in game, aborting match request", whiteId);
+            return;
+        }
+
+        Boolean p2Claimed = redis.opsForValue()
+            .setIfAbsent("player:" + blackId + ":game", blackMetadata, Duration.ofHours(24));
+
+        if (Boolean.FALSE.equals(p2Claimed)) {
+            log.warn("Player {} already in game, rolling back player {} claim", blackId, whiteId);
+            // Rollback: Remove player1's claim
+            redis.delete("player:" + whiteId + ":game");
+            return;
+        }
+
+        // STEP 4: Create game in RAM
         TimeControl tc = TimeControl.parse(timeControl);
         GameState game = new GameState(gameId.toString(), whiteId, blackId, tc);
         game.setLastMoveTimestamp(System.currentTimeMillis());
         games.put(gameId.toString(), game);
 
-        // STEP 5: Register game in Redis (advertise to Gateway and matchmaking)
-        String finalInstanceId = getInstanceId();
-        String finalInstanceUri = buildInstanceUri();
-        String finalWhiteId = whiteId;
-        String finalBlackId = blackId;
-
-        redis.execute(new SessionCallback<Object>() {
-            @Override
-            public Object execute(RedisOperations ops) {
-                ops.multi();
-
-                // Add to active games set
-                ops.opsForSet().add("active_games", gameId.toString());
-
-                // Store game metadata
-                Map<String, String> gameData = Map.of(
-                    "gameId", gameId.toString(),
-                    "whiteId", finalWhiteId,
-                    "blackId", finalBlackId,
-                    "timeControl", timeControl,
-                    "instanceId", finalInstanceId,
-                    "instanceUri", finalInstanceUri,
-                    "status", "waiting",
-                    "createdAt", Instant.now().toString()
-                );
-                ops.opsForHash().putAll("game:" + gameId, gameData);
-
-                // Remove both players from matchmaking queue
-                ops.opsForZSet().remove("queue:" + timeControl, player1Id);
-                ops.opsForZSet().remove("queue:" + timeControl, player2Id);
-
-                ops.exec();
-                return null;
-            }
-        });
+        // STEP 5: Remove both players from matchmaking queue
+        redis.opsForZSet().remove("queue:" + timeControl, whiteId);
+        redis.opsForZSet().remove("queue:" + timeControl, blackId);
 
         // STEP 6: Setup persistence and timeout
         persistMeta(game);
@@ -170,50 +137,6 @@ public class GameManager {
             gameId, whiteId, blackId, tc.wire());
     }
 
-    /**
-     * Instantiate a game in memory from a match event. Idempotent on gameId.
-     * @deprecated Old flow, kept for backwards compatibility during migration.
-     */
-    @Deprecated
-    public void createGame(MatchCreatedEvent event) {
-        String gameId = event.gameId().toString();
-        if (games.containsKey(gameId)) {
-            return; // duplicate delivery — Kafka is at-least-once
-        }
-        TimeControl tc = TimeControl.parse(event.timeControl());
-        GameState game = new GameState(gameId, event.whitePlayerId(), event.blackPlayerId(), tc);
-        game.setLastMoveTimestamp(System.currentTimeMillis());
-        games.put(gameId, game);
-
-        persistMeta(game);
-        timeoutScheduler.arm(gameId, game.getWhiteTimeRemaining(), () -> handleTimeout(gameId));
-        log.info("Game {} created: {} (white) vs {} (black), {}",
-                gameId, event.whitePlayerId(), event.blackPlayerId(), tc.wire());
-    }
-
-    /** Rebuild a game from its persisted Redis log after a crash/restart. */
-    public void restoreGame(String gameId, String whiteId, String blackId,
-                            TimeControl tc, List<MoveRecord> moves) {
-        GameState game = new GameState(gameId, whiteId, blackId, tc);
-        for (MoveRecord rec : moves) {
-            Move move = new Move(rec.uci(), game.getBoard().getSideToMove());
-            game.getBoard().doMove(move);
-            game.getMoveList().add(move);
-            game.getHistory().add(rec);
-            game.setPly(game.getPly() + 1);
-        }
-        if (!moves.isEmpty()) {
-            MoveRecord last = moves.get(moves.size() - 1);
-            game.setWhiteTimeRemaining(last.whiteRemaining());
-            game.setBlackTimeRemaining(last.blackRemaining());
-        }
-        // Don't penalize either player for server downtime — restart the active clock now.
-        game.setLastMoveTimestamp(System.currentTimeMillis());
-        games.put(gameId, game);
-        timeoutScheduler.arm(gameId, game.effectiveRemaining(game.activeColor(), System.currentTimeMillis()),
-                () -> handleTimeout(gameId));
-        log.info("Game {} restored from Redis with {} moves", gameId, moves.size());
-    }
 
     // ── Move handling (the hot path) ─────────────────────────────────────────────
 
@@ -221,12 +144,9 @@ public class GameManager {
      * Validate and apply a move under the 3-way handshake. The caller has already sent
      * the immediate ACK; here we run authoritative validation, the clock engine, Redis
      * persistence, and the broadcast. Errors go back only to the mover.
-     *
-     * @param measuredLagMs the mover's server-measured one-way latency (RTT/2), already
-     *                      derived from Ping/Pong; clamped to {@value #MAX_LAG_REFUND_MS}ms here.
      */
     public void applyMove(String gameId, String playerId, WebSocketSession moverSession,
-                          String uci, long measuredLagMs) {
+                          String uci, long lagMs) {
         GameState game = games.get(gameId);
         if (game == null) {
             registry.sendQuietly(moverSession, messages.error("NO_GAME", "Unknown game"));
@@ -263,12 +183,10 @@ public class GameManager {
             // ── Clock engine ──
             long now = System.currentTimeMillis();
             long elapsedMs = now - game.getLastMoveTimestamp();
-            long lagMs = Math.min(Math.max(0, measuredLagMs), MAX_LAG_REFUND_MS);
-            long effectiveMs = Math.max(0, elapsedMs - lagMs);
 
             double banked = "white".equals(moverColor)
                     ? game.getWhiteTimeRemaining() : game.getBlackTimeRemaining();
-            double newBalance = banked - effectiveMs / 1000.0;
+            double newBalance = banked - elapsedMs / 1000.0;
             if (newBalance <= 0) {
                 // Flagged on their own move — opponent wins on time.
                 setBalance(game, moverColor, 0);
@@ -291,8 +209,11 @@ public class GameManager {
             game.getHistory().add(rec);
             game.setLastMoveTimestamp(now); // opponent's clock starts now
 
-            persistMove(gameId, rec); // crash-recovery log (Redis, in-memory speed)
-            registry.broadcast(gameId, messages.move(game, rec, lagMs));
+            // TODO: Lazy crash recovery — on WS connect, if gameId not in RAM, read
+            // game:{id}:meta + game:{id}:moves from Redis and rebuild in-memory state.
+            // Implement after gateway affinity (game:{id}:instance) is wired up.
+            persistMove(gameId, rec);
+            registry.broadcast(gameId, messages.move(game, rec, 0L));
 
             // ── End-of-game detection ──
             GameStatus end = detectEnd(board, moverColor);
@@ -413,8 +334,9 @@ public class GameManager {
 
         registry.broadcast(gameId, messages.end(game));
 
-        // Free RAM; keep the Redis trail briefly for late reconnects/debugging, then let it expire.
-        redis.opsForSet().remove(ACTIVE_SET, gameId);
+        // Free RAM; clean up player registry; keep meta/moves briefly for debugging, then expire.
+        redis.delete("player:" + game.getWhitePlayerId() + ":game");
+        redis.delete("player:" + game.getBlackPlayerId() + ":game");
         redis.expire(metaKey(gameId), Duration.ofHours(1));
         redis.expire(movesKey(gameId), Duration.ofHours(1));
         games.remove(gameId);
@@ -471,7 +393,6 @@ public class GameManager {
                 "black", game.getBlackPlayerId(),
                 "base", String.valueOf(game.getTimeControl().baseSeconds()),
                 "increment", String.valueOf(game.getTimeControl().incrementSeconds())));
-        redis.opsForSet().add(ACTIVE_SET, game.getGameId());
     }
 
     private void persistMove(String gameId, MoveRecord rec) {
