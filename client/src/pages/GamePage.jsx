@@ -148,13 +148,16 @@ export default function GamePage() {
         if (d.clock) sync(d.clock, nextActive);
         if (d.san) {
           const san = typeof d.san === 'string' ? d.san : (d.san?.san ?? d.san?.uci ?? JSON.stringify(d.san));
-          setSanMoves((prev) => [...prev, san]);
+          setSanMoves((prev) => {
+            if (prev.length >= d.ply) return prev;
+            return [...prev, san];
+          });
         }
         break;
       }
       case 'chat': {
-        if (msg.d.from !== userId) {
-          setChatMessages((prev) => [...prev, { user: msg.d.color, text: msg.d.msg }]);
+        if (msg.d.from !== username) {
+          setChatMessages((prev) => [...prev, { user: msg.d.from, text: msg.d.msg }]);
         }
         break;
       }
@@ -192,7 +195,7 @@ export default function GamePage() {
         break;
       }
     }
-  }, [myColor, sync, userId]);
+  }, [myColor, sync, username]);
 
   const { send } = useGameSocket(gameId, token, handleMessage);
 
