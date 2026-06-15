@@ -20,8 +20,8 @@ import java.util.List;
 public class GameState {
 
     private final String gameId;
-    private final String whitePlayerId;
-    private final String blackPlayerId;
+    private final String whiteUsername;
+    private final String blackUsername;
     private final TimeControl timeControl;
 
     /** Live position; the source of truth for legality and end-of-game detection. */
@@ -42,22 +42,22 @@ public class GameState {
     /** playerId of whoever has an outstanding draw offer, or {@code null}. */
     @Setter private String pendingDrawOfferBy;
 
-    public GameState(String gameId, String whitePlayerId, String blackPlayerId, TimeControl timeControl) {
+    public GameState(String gameId, String whiteUsername, String blackUsername, TimeControl timeControl) {
         this.gameId = gameId;
-        this.whitePlayerId = whitePlayerId;
-        this.blackPlayerId = blackPlayerId;
+        this.whiteUsername = whiteUsername;
+        this.blackUsername = blackUsername;
         this.timeControl = timeControl;
         this.whiteTimeRemaining = timeControl.baseSeconds();
         this.blackTimeRemaining = timeControl.baseSeconds();
     }
 
-    public boolean isParticipant(String playerId) {
-        return whitePlayerId.equals(playerId) || blackPlayerId.equals(playerId);
+    public boolean isParticipant(String username) {
+        return whiteUsername.equals(username) || blackUsername.equals(username);
     }
 
-    public String colorOf(String playerId) {
-        if (whitePlayerId.equals(playerId)) return "white";
-        if (blackPlayerId.equals(playerId)) return "black";
+    public String colorOf(String username) {
+        if (whiteUsername.equals(username)) return "white";
+        if (blackUsername.equals(username)) return "black";
         return null;
     }
 
@@ -65,8 +65,8 @@ public class GameState {
         return board.getSideToMove() == Side.WHITE ? "white" : "black";
     }
 
-    public String activePlayerId() {
-        return board.getSideToMove() == Side.WHITE ? whitePlayerId : blackPlayerId;
+    public String activeUsername() {
+        return board.getSideToMove() == Side.WHITE ? whiteUsername : blackUsername;
     }
 
     public String opponentColor(String color) {

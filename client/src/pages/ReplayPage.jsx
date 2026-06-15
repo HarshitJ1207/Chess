@@ -173,7 +173,11 @@ export default function ReplayPage() {
                   {game.termination}
                 </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary">
+              <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="body2">White: <strong>{game.whiteUsername ?? game.whitePlayerId}</strong></Typography>
+                <Typography variant="body2">Black: <strong>{game.blackUsername ?? game.blackPlayerId}</strong></Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 {Math.ceil(sanMoves.length / 2)} moves ({sanMoves.length} plies)
               </Typography>
             </>

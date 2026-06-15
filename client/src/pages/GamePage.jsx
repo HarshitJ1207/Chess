@@ -97,6 +97,7 @@ export default function GamePage() {
   const [opponentDrawOffer, setOpponentDrawOffer] = useState(false);
   const [moveFrom, setMoveFrom] = useState('');
   const [optionSquares, setOptionSquares] = useState({});
+  const [opponentUsername, setOpponentUsername] = useState('Opponent');
 
   const actionCounter = useRef(0);
   const chessRef = useRef(new Chess());
@@ -117,6 +118,8 @@ export default function GamePage() {
       case 'init': {
         setWsStatus('connected');
         setMyColor(msg.d.color);
+        const oppName = msg.d.color === 'white' ? (msg.d.blackUsername ?? 'Opponent') : (msg.d.whiteUsername ?? 'Opponent');
+        setOpponentUsername(oppName);
         if (msg.d.fen) {
           setFen(msg.d.fen);
           chessRef.current.load(msg.d.fen);
@@ -363,7 +366,7 @@ export default function GamePage() {
         {/* Opponent info + clock */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minWidth: 0 }}>
           <Typography variant="body1" fontWeight={600} color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-            Opponent ({opponentColor})
+            {opponentUsername} ({opponentColor})
           </Typography>
           <ClockDisplay ms={opponentMs} active={!isMyTurn && !gameOver} color={opponentColor} />
         </Box>

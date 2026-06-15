@@ -77,21 +77,21 @@ public class GameManager {
      * INVARIANT: Registry ⊆ RAM. Game must exist in RAM before being added to registry.
      */
     public void createGameFromMatchRequest(MatchRequest request) {
-        String player1Id = request.player1Id();
-        String player2Id = request.player2Id();
+        String player1Username = request.player1Username();
+        String player2Username = request.player2Username();
         String timeControl = request.timeControl();
 
         // Generate unique game ID
         java.util.UUID gameId = java.util.UUID.randomUUID();
 
-        log.info("Processing match request: {} vs {} (gameId={})", player1Id, player2Id, gameId);
+        log.info("Processing match request: {} vs {} (gameId={})", player1Username, player2Username, gameId);
 
         // STEP 1: Flip coin for colors
         boolean player1IsWhite = gameId.getLeastSignificantBits() > 0;
-        String whiteId = player1IsWhite ? player1Id : player2Id;
-        String blackId = player1IsWhite ? player2Id : player1Id;
+        String whiteUsername = player1IsWhite ? player1Username : player2Username;
+        String blackUsername = player1IsWhite ? player2Username : player1Username;
 
-        log.info("Color assignment: white={}, black={}", whiteId, blackId);
+        log.info("Color assignment: white={}, black={}", whiteUsername, blackUsername);
 
         // STEP 2: Build metadata for both players
         String finalInstanceUri = buildInstanceUri();
@@ -99,7 +99,7 @@ public class GameManager {
         PlayerGameMetadata whiteMetadata = new PlayerGameMetadata(
             gameId.toString(),
             "white",
-            blackId,
+            blackUsername,
             timeControl,
             finalInstanceUri
         );
@@ -107,7 +107,7 @@ public class GameManager {
         PlayerGameMetadata blackMetadata = new PlayerGameMetadata(
             gameId.toString(),
             "black",
-            whiteId,
+            whiteUsername,
             timeControl,
             finalInstanceUri
         );
@@ -118,19 +118,19 @@ public class GameManager {
             String blackJson = mapper.writeValueAsString(blackMetadata);
 
             Boolean p1Claimed = redis.opsForValue()
-                .setIfAbsent("player:" + whiteId + ":game", whiteJson, Duration.ofHours(24));
+                .setIfAbsent("player:" + whiteUsername + ":game", whiteJson, Duration.ofHours(24));
 
             if (Boolean.FALSE.equals(p1Claimed)) {
-                log.warn("Player {} already in game, aborting match request", whiteId);
+                log.warn("Player {} already in game, aborting match request", whiteUsername);
                 return;
             }
 
             Boolean p2Claimed = redis.opsForValue()
-                .setIfAbsent("player:" + blackId + ":game", blackJson, Duration.ofHours(24));
+                .setIfAbsent("player:" + blackUsername + ":game", blackJson, Duration.ofHours(24));
 
             if (Boolean.FALSE.equals(p2Claimed)) {
-                log.warn("Player {} already in game, rolling back player {} claim", blackId, whiteId);
-                redis.delete("player:" + whiteId + ":game");
+                log.warn("Player {} already in game, rolling back player {} claim", blackUsername, whiteUsername);
+                redis.delete("player:" + whiteUsername + ":game");
                 return;
             }
         } catch (JsonProcessingException e) {
@@ -140,23 +140,23 @@ public class GameManager {
 
         // STEP 4: Create game in RAM
         TimeControl tc = TimeControl.parse(timeControl);
-        GameState game = new GameState(gameId.toString(), whiteId, blackId, tc);
+        GameState game = new GameState(gameId.toString(), whiteUsername, blackUsername, tc);
 
         // TODO: whites clock starts running the moment the game is created
-        // we can follow a lichess like approach, the clock only starts running when both players make their first move. 
+        // we can follow a lichess like approach, the clock only starts running when both players make their first move.
         game.setLastMoveTimestamp(System.currentTimeMillis());
         games.put(gameId.toString(), game);
 
         // STEP 5: Remove both players from matchmaking queue
-        redis.opsForZSet().remove("queue:" + timeControl, whiteId);
-        redis.opsForZSet().remove("queue:" + timeControl, blackId);
+        redis.opsForZSet().remove("queue:" + timeControl, whiteUsername);
+        redis.opsForZSet().remove("queue:" + timeControl, blackUsername);
 
         // STEP 6: Setup persistence and timeout
         persistMeta(game);
         timeoutScheduler.arm(gameId.toString(), game.getWhiteTimeRemaining(), () -> handleTimeout(gameId.toString()));
 
         log.info("Game {} created: {} (white) vs {} (black), {}",
-            gameId, whiteId, blackId, tc.wire());
+            gameId, whiteUsername, blackUsername, tc.wire());
     }
 
 
@@ -167,7 +167,7 @@ public class GameManager {
      * the immediate ACK; here we run authoritative validation, the clock engine, Redis
      * persistence, and the broadcast. Errors go back only to the mover.
      */
-    public void applyMove(String gameId, String playerId, WebSocketSession moverSession,
+    public void applyMove(String gameId, String username, WebSocketSession moverSession,
                           String uci) {
         GameState game = games.get(gameId);
         if (game == null) {
@@ -179,7 +179,7 @@ public class GameManager {
                 registry.sendQuietly(moverSession, messages.error("GAME_OVER", "Game already concluded"));
                 return;
             }
-            String moverColor = game.colorOf(playerId);
+            String moverColor = game.colorOf(username);
             if (moverColor == null) {
                 registry.sendQuietly(moverSession, messages.error("NOT_PARTICIPANT", "Not in this game"));
                 return;
@@ -253,23 +253,23 @@ public class GameManager {
 
     // ── Non-move actions ─────────────────────────────────────────────────────────
 
-    public void resign(String gameId, String playerId) {
+    public void resign(String gameId, String username) {
         GameState game = games.get(gameId);
         if (game == null) return;
         synchronized (game) {
             if (game.getStatus().isOver()) return;
-            String color = game.colorOf(playerId);
+            String color = game.colorOf(username);
             if (color == null) return;
             concludeWithLoser(game, color, "resignation");
         }
     }
 
-    public void abort(String gameId, String playerId, WebSocketSession session) {
+    public void abort(String gameId, String username, WebSocketSession session) {
         GameState game = games.get(gameId);
         if (game == null) return;
         synchronized (game) {
             if (game.getStatus().isOver()) return;
-            if (game.colorOf(playerId) == null) return;
+            if (game.colorOf(username) == null) return;
             // Abort is only valid before the game is truly underway (no reply by black yet).
             if (game.getPly() >= 2) {
                 registry.sendQuietly(session, messages.error("CANNOT_ABORT", "Game already underway; resign instead"));
@@ -279,22 +279,22 @@ public class GameManager {
         }
     }
 
-    public void handleDraw(String gameId, String playerId, String action) {
+    public void handleDraw(String gameId, String username, String action) {
         GameState game = games.get(gameId);
         if (game == null) return;
         synchronized (game) {
             if (game.getStatus().isOver()) return;
-            String color = game.colorOf(playerId);
+            String color = game.colorOf(username);
             if (color == null) return;
-            String opponentId = "white".equals(color) ? game.getBlackPlayerId() : game.getWhitePlayerId();
+            String opponentUsername = "white".equals(color) ? game.getBlackUsername() : game.getWhiteUsername();
 
             switch (action == null ? "" : action) {
                 case "offer", "accept" -> {
-                    if (opponentId.equals(game.getPendingDrawOfferBy())) {
+                    if (opponentUsername.equals(game.getPendingDrawOfferBy())) {
                         // Both sides now want a draw.
                         concludeWith(game, GameStatus.DRAW, "draw_agreement");
                     } else if ("offer".equals(action)) {
-                        game.setPendingDrawOfferBy(playerId);
+                        game.setPendingDrawOfferBy(username);
                         registry.broadcast(gameId, messages.draw("offer", color));
                     }
                 }
@@ -307,12 +307,12 @@ public class GameManager {
         }
     }
 
-    public void chat(String gameId, String playerId, String text) {
+    public void chat(String gameId, String username, String text) {
         GameState game = games.get(gameId);
         if (game == null || text == null || text.isBlank()) return;
-        String color = game.colorOf(playerId);
+        String color = game.colorOf(username);
         if (color == null) return;
-        ChatMessage msg = new ChatMessage(playerId, color, text);
+        ChatMessage msg = new ChatMessage(username, color, text);
         synchronized (game) {
             game.getChat().add(msg);
         }
@@ -352,14 +352,14 @@ public class GameManager {
         timeoutScheduler.cancel(gameId);
 
         publisher.publishConcluded(new GameConcludedEvent(
-                gameId, game.getWhitePlayerId(), game.getBlackPlayerId(),
+                gameId, game.getWhiteUsername(), game.getBlackUsername(),
                 status.resultTag(), termination, game.uciList()));
 
         registry.broadcast(gameId, messages.end(game));
 
         // Free RAM; clean up player registry; keep meta/moves briefly for debugging, then expire.
-        redis.delete("player:" + game.getWhitePlayerId() + ":game");
-        redis.delete("player:" + game.getBlackPlayerId() + ":game");
+        redis.delete("player:" + game.getWhiteUsername() + ":game");
+        redis.delete("player:" + game.getBlackUsername() + ":game");
         redis.expire(metaKey(gameId), Duration.ofHours(1));
         redis.expire(movesKey(gameId), Duration.ofHours(1));
         games.remove(gameId);
@@ -412,8 +412,8 @@ public class GameManager {
     private void persistMeta(GameState game) {
         String key = metaKey(game.getGameId());
         redis.opsForHash().putAll(key, Map.of(
-                "white", game.getWhitePlayerId(),
-                "black", game.getBlackPlayerId(),
+                "white", game.getWhiteUsername(),
+                "black", game.getBlackUsername(),
                 "base", String.valueOf(game.getTimeControl().baseSeconds()),
                 "increment", String.valueOf(game.getTimeControl().incrementSeconds())));
     }

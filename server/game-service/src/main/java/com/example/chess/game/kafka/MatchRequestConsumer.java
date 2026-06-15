@@ -20,9 +20,9 @@ public class MatchRequestConsumer {
 
     @KafkaListener(topics = "match-request", groupId = "game-service")
     public void onMatchRequest(MatchRequest request) {
-        log.info("Received MatchRequest: {} vs {} ({})", 
-            request.player1Id(), request.player2Id(), request.timeControl());
-        
+        log.info("Received MatchRequest: {} vs {} ({})",
+            request.player1Username(), request.player2Username(), request.timeControl());
+
         gameManager.createGameFromMatchRequest(request);
     }
 }

@@ -28,14 +28,14 @@ public class RatingController {
     private final PlayerRatingRepository repository;
     private final StringRedisTemplate redis;
 
-    @GetMapping("/{playerId}")
-    public ResponseEntity<PlayerRating> getRating(@PathVariable String playerId) {
-        return repository.findById(playerId)
+    @GetMapping("/{username}")
+    public ResponseEntity<PlayerRating> getRating(@PathVariable String username) {
+        return repository.findById(username)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    public record LeaderboardEntry(String playerId, double rating) {}
+    public record LeaderboardEntry(String username, double rating) {}
 
     @GetMapping("/leaderboard")
     public List<LeaderboardEntry> leaderboard(@RequestParam(defaultValue = "10") int top) {

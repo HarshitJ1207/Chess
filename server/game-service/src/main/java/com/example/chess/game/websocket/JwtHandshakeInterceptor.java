@@ -16,12 +16,11 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        // Gateway has already validated JWT and injected X-User-ID header
-        String userId = request.getHeaders().getFirst("X-User-ID");
+        // Gateway has already validated JWT and injected X-Username header
         String username = request.getHeaders().getFirst("X-Username");
 
-        if (userId == null) {
-            log.debug("Rejecting WS handshake: missing X-User-ID header for {}", request.getURI().getPath());
+        if (username == null || username.isBlank()) {
+            log.debug("Rejecting WS handshake: missing X-Username header for {}", request.getURI().getPath());
             return false;
         }
 
@@ -31,8 +30,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        attributes.put("playerId", userId);
-        attributes.put("username", username != null ? username : "unknown");
+        attributes.put("playerId", username);
         attributes.put("gameId", gameId);
         return true;
     }

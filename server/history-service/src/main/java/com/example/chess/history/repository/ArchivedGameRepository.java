@@ -8,6 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ArchivedGameRepository extends JpaRepository<ArchivedGame, String> {
 
     /** A player's games (as either color), newest first. */
-    Page<ArchivedGame> findByWhitePlayerIdOrBlackPlayerIdOrderByPlayedAtDesc(
-            String whitePlayerId, String blackPlayerId, Pageable pageable);
+    Page<ArchivedGame> findByWhiteUsernameOrBlackUsernameOrderByPlayedAtDesc(
+            String whiteUsername, String blackUsername, Pageable pageable);
 }

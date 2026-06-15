@@ -31,11 +31,11 @@ public class ArchivedGame {
     @Column(name = "game_id")
     private String gameId;
 
-    @Column(name = "white_player_id", nullable = false)
-    private String whitePlayerId;
+    @Column(name = "white_username", nullable = false)
+    private String whiteUsername;
 
-    @Column(name = "black_player_id", nullable = false)
-    private String blackPlayerId;
+    @Column(name = "black_username", nullable = false)
+    private String blackUsername;
 
     private String result;       // 1-0 / 0-1 / 1/2-1/2 / *
     private String termination;  // checkmate, resignation, timeout, ...

@@ -41,10 +41,10 @@ public class RatingService {
             return;
         }
 
-        PlayerRating white = repository.findById(event.whitePlayerId())
-                .orElseGet(() -> PlayerRating.fresh(event.whitePlayerId()));
-        PlayerRating black = repository.findById(event.blackPlayerId())
-                .orElseGet(() -> PlayerRating.fresh(event.blackPlayerId()));
+        PlayerRating white = repository.findById(event.whiteUsername())
+                .orElseGet(() -> PlayerRating.fresh(event.whiteUsername()));
+        PlayerRating black = repository.findById(event.blackUsername())
+                .orElseGet(() -> PlayerRating.fresh(event.blackUsername()));
 
         // Snapshot pre-game values — each player updates against the other's OLD rating.
         double wR = white.getRating(), wD = white.getRatingDeviation(), wV = white.getVolatility();
@@ -59,8 +59,8 @@ public class RatingService {
         repository.save(black);
 
         // Sync the Redis leaderboard ZSET (score = rating).
-        redis.opsForZSet().add(LEADERBOARD_KEY, white.getPlayerId(), newWhite.rating());
-        redis.opsForZSet().add(LEADERBOARD_KEY, black.getPlayerId(), newBlack.rating());
+        redis.opsForZSet().add(LEADERBOARD_KEY, white.getUsername(), newWhite.rating());
+        redis.opsForZSet().add(LEADERBOARD_KEY, black.getUsername(), newBlack.rating());
 
         log.info("Rated game {}: white {}→{} | black {}→{}", event.gameId(),
                 Math.round(wR), Math.round(newWhite.rating()),

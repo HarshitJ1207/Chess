@@ -9,8 +9,8 @@ import java.util.List;
  */
 public record GameConcludedEvent(
         String gameId,
-        String whitePlayerId,
-        String blackPlayerId,
+        String whiteUsername,
+        String blackUsername,
         String result,
         String termination,
         List<String> moves

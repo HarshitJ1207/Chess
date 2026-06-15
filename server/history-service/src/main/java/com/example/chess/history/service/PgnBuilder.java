@@ -60,8 +60,8 @@ public class PgnBuilder {
         StringBuilder sb = new StringBuilder();
         sb.append("[Event \"Chess Platform\"]\n");
         sb.append("[Site \"chess\"]\n");
-        sb.append("[White \"").append(event.whitePlayerId()).append("\"]\n");
-        sb.append("[Black \"").append(event.blackPlayerId()).append("\"]\n");
+        sb.append("[White \"").append(event.whiteUsername()).append("\"]\n");
+        sb.append("[Black \"").append(event.blackUsername()).append("\"]\n");
         sb.append("[Result \"").append(event.result()).append("\"]\n");
         sb.append("[Termination \"").append(event.termination()).append("\"]\n\n");
 

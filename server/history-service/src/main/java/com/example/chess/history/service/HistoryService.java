@@ -32,8 +32,8 @@ public class HistoryService {
 
         ArchivedGame game = new ArchivedGame();
         game.setGameId(event.gameId());
-        game.setWhitePlayerId(event.whitePlayerId());
-        game.setBlackPlayerId(event.blackPlayerId());
+        game.setWhiteUsername(event.whiteUsername());
+        game.setBlackUsername(event.blackUsername());
         game.setResult(event.result());
         game.setTermination(event.termination());
         game.setMoves(r.telemetry());
@@ -45,8 +45,8 @@ public class HistoryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ArchivedGame> gamesForPlayer(String playerId, Pageable pageable) {
-        return repository.findByWhitePlayerIdOrBlackPlayerIdOrderByPlayedAtDesc(playerId, playerId, pageable);
+    public Page<ArchivedGame> gamesForPlayer(String username, Pageable pageable) {
+        return repository.findByWhiteUsernameOrBlackUsernameOrderByPlayedAtDesc(username, username, pageable);
     }
 
     @Transactional(readOnly = true)

@@ -37,7 +37,7 @@ export const api = {
     headers: authHeaders(token),
   }),
 
-  getRating: (userId, token) => request(`${BASE.ratings}/${userId}`, {
+  getRating: (username, token) => request(`${BASE.ratings}/${username}`, {
     headers: authHeaders(token),
   }),
 
@@ -45,8 +45,8 @@ export const api = {
     headers: authHeaders(token),
   }),
 
-  getHistory: (playerId, page = 0, size = 20, token) => request(
-    `${BASE.history}/player/${playerId}?page=${page}&size=${size}`,
+  getHistory: (username, page = 0, size = 20, token) => request(
+    `${BASE.history}/player/${username}?page=${page}&size=${size}`,
     { headers: authHeaders(token) },
   ),
 

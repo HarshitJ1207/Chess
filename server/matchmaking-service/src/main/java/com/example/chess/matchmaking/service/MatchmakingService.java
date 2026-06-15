@@ -50,29 +50,29 @@ public class MatchmakingService {
      * If in game, returns match details.
      * Otherwise, adds player to queue and returns queued status.
      */
-    public QueueResponse joinQueue(String playerId, QueueRequest request) {
+    public QueueResponse joinQueue(String username, QueueRequest request) {
         // Check if player is already in an active game
-        String playerGameJson = redis.opsForValue().get("player:" + playerId + ":game");
+        String playerGameJson = redis.opsForValue().get("player:" + username + ":game");
 
         if (playerGameJson != null) {
             try {
                 // Parse JSON to extract game details
-                // JSON format: {"gameId":"...", "myColor":"white", "opponentId":"...", "timeControl":"...", "instanceUri":"..."}
+                // JSON format: {"gameId":"...", "myColor":"white", "opponentUsername":"...", "timeControl":"...", "instanceUri":"..."}
                 JsonNode node = mapper.readTree(playerGameJson);
                 String gameId = node.get("gameId").asText();
                 String myColor = node.get("myColor").asText();
-                String opponentId = node.get("opponentId").asText();
+                String opponentUsername = node.get("opponentUsername").asText();
 
-                return QueueResponse.matched(UUID.fromString(gameId), myColor, opponentId);
+                return QueueResponse.matched(UUID.fromString(gameId), myColor, opponentUsername);
             } catch (Exception e) {
                 // JSON parse failed — stale entry, clean it up
-                redis.delete("player:" + playerId + ":game");
+                redis.delete("player:" + username + ":game");
             }
         }
 
         // Not in active game, add to queue
         String queueKey = QUEUE_KEY_PREFIX + request.timeControl();
-        redis.opsForZSet().add(queueKey, playerId, request.elo());
+        redis.opsForZSet().add(queueKey, username, request.elo());
 
         return QueueResponse.queued();
     }
@@ -82,9 +82,9 @@ public class MatchmakingService {
      *
      * Rejects if player is already in a game.
      */
-    public void leaveQueue(String playerId, String timeControl) {
+    public void leaveQueue(String username, String timeControl) {
         // Check if already in a game
-        String playerGameJson = redis.opsForValue().get("player:" + playerId + ":game");
+        String playerGameJson = redis.opsForValue().get("player:" + username + ":game");
 
         if (playerGameJson != null) {
             try {
@@ -95,12 +95,12 @@ public class MatchmakingService {
                 }
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
                 // Not JSON — stale entry, clean it up
-                redis.delete("player:" + playerId + ":game");
+                redis.delete("player:" + username + ":game");
             }
         }
 
         // Remove from queue
-        redis.opsForZSet().remove(QUEUE_KEY_PREFIX + timeControl, playerId);
+        redis.opsForZSet().remove(QUEUE_KEY_PREFIX + timeControl, username);
     }
 
     /**
@@ -138,27 +138,27 @@ public class MatchmakingService {
             Player p2 = players.get(i + 1);
 
             if (Math.abs(p1.elo - p2.elo) <= eloRange) {
-                publishMatchRequest(p1.id, p2.id, timeControl);
+                publishMatchRequest(p1.username, p2.username, timeControl);
                 i++; // Skip next player (already paired)
             }
         }
     }
 
-    private void publishMatchRequest(String p1Id, String p2Id, String timeControl) {
-        // Create deterministic partition key (sorted player IDs)
-        String partitionKey = createPartitionKey(p1Id, p2Id);
+    private void publishMatchRequest(String p1Username, String p2Username, String timeControl) {
+        // Create deterministic partition key (sorted player usernames)
+        String partitionKey = createPartitionKey(p1Username, p2Username);
 
         // Publish match request (game-service will create gameId and assign colors)
-        MatchRequest request = new MatchRequest(p1Id, p2Id, timeControl);
+        MatchRequest request = new MatchRequest(p1Username, p2Username, timeControl);
 
         kafkaTemplate.send(MATCH_REQUEST_TOPIC, partitionKey, request);
 
         log.info("Match request published: {} vs {} [key={}] ({})",
-            p1Id, p2Id, partitionKey, timeControl);
+            p1Username, p2Username, partitionKey, timeControl);
     }
 
     /**
-     * Create deterministic partition key from two player IDs.
+     * Create deterministic partition key from two player usernames.
      *
      * Sorts alphabetically to ensure (A,B) and (B,A) produce same key.
      * This ensures same player pair always goes to same Kafka partition.
@@ -171,5 +171,5 @@ public class MatchmakingService {
         }
     }
 
-    record Player(String id, int elo) {}
+    record Player(String username, int elo) {}
 }

@@ -13,7 +13,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * One player's Glicko-2 vector. Keyed by the player's id (the JWT subject / auth userId),
+ * One player's Glicko-2 vector. Keyed by the player's username (from auth-service),
  * carried opaquely as a string — this DB never joins to auth_db (isolation rule).
  */
 @Entity
@@ -24,8 +24,8 @@ import java.time.LocalDateTime;
 public class PlayerRating {
 
     @Id
-    @Column(name = "player_id")
-    private String playerId;
+    @Column(name = "username")
+    private String username;
 
     private double rating;
     private double ratingDeviation;
@@ -36,9 +36,9 @@ public class PlayerRating {
     private LocalDateTime updatedAt;
 
     /** A never-before-seen player starts at the Glicko-2 defaults (1500 / 350 / 0.06). */
-    public static PlayerRating fresh(String playerId) {
+    public static PlayerRating fresh(String username) {
         PlayerRating r = new PlayerRating();
-        r.playerId = playerId;
+        r.username = username;
         r.rating = Glicko2.DEFAULT_RATING;
         r.ratingDeviation = Glicko2.DEFAULT_RD;
         r.volatility = Glicko2.DEFAULT_VOLATILITY;

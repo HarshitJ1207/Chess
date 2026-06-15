@@ -26,12 +26,12 @@ public class HistoryController {
     private final HistoryService historyService;
 
     /** Paginated game archive for a player (as either color), newest first. */
-    @GetMapping("/player/{playerId}")
-    public PagedGames byPlayer(@PathVariable String playerId,
+    @GetMapping("/player/{username}")
+    public PagedGames byPlayer(@PathVariable String username,
                                @RequestParam(defaultValue = "0") int page,
                                @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
-        Page<ArchivedGame> result = historyService.gamesForPlayer(playerId, pageable);
+        Page<ArchivedGame> result = historyService.gamesForPlayer(username, pageable);
         return new PagedGames(
                 result.getContent(),
                 result.getNumber(),

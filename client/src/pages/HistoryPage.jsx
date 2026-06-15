@@ -16,14 +16,14 @@ function resultChip(result) {
 
 export default function HistoryPage() {
   const navigate = useNavigate();
-  const { userId, token } = useAuthStore();
+  const { username, token } = useAuthStore();
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['history', userId, page],
-    queryFn: () => api.getHistory(userId, page, pageSize, token),
-    enabled: !!userId && !!token,
+    queryKey: ['history', username, page],
+    queryFn: () => api.getHistory(username, page, pageSize, token),
+    enabled: !!username && !!token,
   });
 
   if (isLoading) return (
@@ -48,33 +48,40 @@ export default function HistoryPage() {
               <TableRow>
                 <TableCell sx={{ color: 'text.secondary' }}>Date</TableCell>
                 <TableCell sx={{ color: 'text.secondary' }}>Result</TableCell>
+                <TableCell sx={{ color: 'text.secondary' }}>Opponent</TableCell>
                 <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>Termination</TableCell>
                 <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>Moves</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {data?.content?.map((game) => (
-                <TableRow key={game.gameId} hover>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{resultChip(game.result)}</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                    <Typography variant="body2" color="text.secondary">{game.termination}</Typography>
-                  </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                    <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => navigate(`/replay/${game.gameId}`)}>
-                      Review
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {data?.content?.map((game) => {
+                const opp = game.whiteUsername === username ? (game.blackUsername ?? game.blackPlayerId) : (game.whiteUsername ?? game.whitePlayerId);
+                return (
+                  <TableRow key={game.gameId} hover>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{resultChip(game.result)}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{opp}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <Typography variant="body2" color="text.secondary">{game.termination}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                      <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button size="small" onClick={() => navigate(`/replay/${game.gameId}`)}>
+                        Review
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Box>

@@ -47,8 +47,8 @@ public class GameMessages {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("gameId", g.getGameId());
         d.put("color", yourColor);
-        d.put("white", g.getWhitePlayerId());
-        d.put("black", g.getBlackPlayerId());
+        d.put("whiteUsername", g.getWhiteUsername());
+        d.put("blackUsername", g.getBlackUsername());
         d.put("fen", g.getBoard().getFen());
         d.put("ply", g.getPly());
         d.put("status", g.getStatus().name());

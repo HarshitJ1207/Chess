@@ -12,11 +12,11 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
-function RatingCard({ userId, token }) {
+function RatingCard({ username, token }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['rating', userId],
-    queryFn: () => api.getRating(userId, token),
-    enabled: !!userId && !!token,
+    queryKey: ['rating', username],
+    queryFn: () => api.getRating(username, token),
+    enabled: !!username && !!token,
   });
 
   if (isLoading) return <CircularProgress size={20} />;
@@ -112,7 +112,7 @@ export default function DashboardPage() {
             </Box>
 
             <Divider />
-            <RatingCard userId={userId} token={token} />
+            <RatingCard username={username} token={token} />
             <Divider />
 
             <Button
