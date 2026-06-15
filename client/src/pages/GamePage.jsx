@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
@@ -95,8 +95,8 @@ export default function GamePage() {
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | connected | disconnected
   const [drawOffered, setDrawOffered] = useState(false);
   const [opponentDrawOffer, setOpponentDrawOffer] = useState(false);
-  const [selectedSquare, setSelectedSquare] = useState(null);
-  const [legalSquares, setLegalSquares] = useState([]);
+  const [moveFrom, setMoveFrom] = useState('');
+  const [optionSquares, setOptionSquares] = useState({});
 
   const actionCounter = useRef(0);
   const chessRef = useRef(new Chess());
@@ -160,82 +160,126 @@ export default function GamePage() {
 
   const { send } = useGameSocket(gameId, token, handleMessage);
 
-  function handlePieceDrop({ sourceSquare, targetSquare, piece }) {
-    if (!myColor || activeColor !== myColor) return false;
-    return attemptMove(sourceSquare, targetSquare);
-  }
+  function getMoveOptions(square) {
+    const moves = chessRef.current.moves({ square, verbose: true });
+    if (moves.length === 0) {
+      setOptionSquares({});
+      return false;
+    }
 
-  function attemptMove(from, to) {
-    const chess = chessRef.current;
-    const piece = chess.get(from);
-    if (!piece) return false;
+    const newSquares = {};
+    for (const move of moves) {
+      const target = chessRef.current.get(move.to);
+      const source = chessRef.current.get(square);
+      newSquares[move.to] = {
+        background: target && target.color !== source?.color
+          ? 'radial-gradient(circle, rgba(10,113,88,0.4) 85%, transparent 85%)'
+          : 'radial-gradient(circle, rgba(10,113,88,0.4) 25%, transparent 25%)',
+        borderRadius: '50%',
+      };
+    }
 
-    // Check promotion
-    const isPromotion = piece.type === 'p' &&
-      ((piece.color === 'w' && to[1] === '8') || (piece.color === 'b' && to[1] === '1'));
-
-    const uci = `${from}${to}${isPromotion ? 'q' : ''}`;
-    const move = chess.move({ from, to, promotion: isPromotion ? 'q' : undefined });
-    if (!move) return false;
-
-    // Optimistic local update
-    setFen(chess.fen());
-    setSanMoves((prev) => [...prev, move.san]);
-    setSelectedSquare(null);
-    setLegalSquares([]);
-
-    send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
+    newSquares[square] = { backgroundColor: 'rgba(10, 113, 88, 0.6)' };
+    setOptionSquares(newSquares);
     return true;
   }
 
-  function handleSquareClick({ square, piece }) {
+  function onSquareClick({ square, piece }) {
     if (!myColor || activeColor !== myColor) return;
     const chess = chessRef.current;
 
-    if (selectedSquare) {
-      if (square === selectedSquare) {
-        setSelectedSquare(null);
-        setLegalSquares([]);
-        return;
-      }
-      // Try to move
-      const moved = attemptMove(selectedSquare, square);
-      if (!moved) {
-        // Maybe selecting a new piece
-        const p = chess.get(square);
-        if (p && p.color === (myColor === 'white' ? 'w' : 'b')) {
-          selectSquare(square);
-        } else {
-          setSelectedSquare(null);
-          setLegalSquares([]);
+    // No piece selected yet
+    if (!moveFrom) {
+      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+        const hasMoveOptions = getMoveOptions(square);
+        if (hasMoveOptions) {
+          setMoveFrom(square);
         }
       }
-    } else {
-      const p = chess.get(square);
-      if (p && p.color === (myColor === 'white' ? 'w' : 'b')) {
-        selectSquare(square);
+      return;
+    }
+
+    // Check if it's a valid move
+    const moves = chess.moves({ square: moveFrom, verbose: true });
+    const foundMove = moves.find(m => m.to === square);
+
+    if (!foundMove) {
+      // Invalid move, check if clicking new piece
+      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+        const hasMoveOptions = getMoveOptions(square);
+        setMoveFrom(hasMoveOptions ? square : '');
+      } else {
+        setMoveFrom('');
+        setOptionSquares({});
+      }
+      return;
+    }
+
+    // Valid move found
+    const isPromotion = chess.get(moveFrom).type === 'p' &&
+      ((chess.get(moveFrom).color === 'w' && square[1] === '8') ||
+       (chess.get(moveFrom).color === 'b' && square[1] === '1'));
+
+    try {
+      chess.move({ from: moveFrom, to: square, promotion: 'q' });
+      setFen(chess.fen());
+      setSanMoves((prev) => [...prev, foundMove.san]);
+
+      const uci = `${moveFrom}${square}${isPromotion ? 'q' : ''}`;
+      send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
+
+      setMoveFrom('');
+      setOptionSquares({});
+    } catch (e) {
+      // Move failed, try selecting the clicked square as new piece
+      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+        const hasMoveOptions = getMoveOptions(square);
+        setMoveFrom(hasMoveOptions ? square : '');
+      } else {
+        setMoveFrom('');
+        setOptionSquares({});
       }
     }
   }
 
-  function selectSquare(square) {
-    setSelectedSquare(square);
-    const moves = chessRef.current.moves({ square, verbose: true });
-    setLegalSquares(moves.map((m) => m.to));
+  function onPieceDrop({ sourceSquare, targetSquare }) {
+    if (!targetSquare || !myColor || activeColor !== myColor) return false;
+
+    const chess = chessRef.current;
+    const isPromotion = chess.get(sourceSquare).type === 'p' &&
+      ((chess.get(sourceSquare).color === 'w' && targetSquare[1] === '8') ||
+       (chess.get(sourceSquare).color === 'b' && targetSquare[1] === '1'));
+
+    try {
+      const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
+      setFen(chess.fen());
+      setSanMoves((prev) => [...prev, move.san]);
+
+      const uci = `${sourceSquare}${targetSquare}${isPromotion ? 'q' : ''}`;
+      send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
+
+      setMoveFrom('');
+      setOptionSquares({});
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  function buildSquareStyles() {
-    const styles = {};
-    if (selectedSquare) {
-      styles[selectedSquare] = { backgroundColor: 'rgba(10, 113, 88, 0.5)' };
-    }
-    legalSquares.forEach((sq) => {
-      styles[sq] = {
-        background: 'radial-gradient(circle, rgba(10,113,88,0.5) 25%, transparent 25%)',
-      };
-    });
-    return styles;
-  }
+  const isMyTurn = activeColor === myColor;
+  const opponentColor = myColor === 'white' ? 'black' : 'white';
+  const myMs = myColor === 'white' ? whiteMs : blackMs;
+  const opponentMs = myColor === 'white' ? blackMs : whiteMs;
+
+  const chessboardOptions = {
+    position: fen,
+    onSquareClick,
+    onPieceDrop,
+    boardOrientation: myColor ?? 'white',
+    squareStyles: optionSquares,
+    animationDurationInMs: 100,
+    arePiecesDraggable: isMyTurn && !gameOver,
+  };
 
   function handleResign() {
     send({ t: 'resign' });
@@ -261,11 +305,6 @@ export default function GamePage() {
     setChatMessages((prev) => [...prev, { user: username, text }]);
   }
 
-  const opponentColor = myColor === 'white' ? 'black' : 'white';
-  const myMs = myColor === 'white' ? whiteMs : blackMs;
-  const opponentMs = myColor === 'white' ? blackMs : whiteMs;
-  const isMyTurn = activeColor === myColor;
-
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: 2, p: 2, minHeight: '90vh' }}>
       {/* Board column */}
@@ -280,23 +319,7 @@ export default function GamePage() {
 
         {/* Chessboard */}
         <Box sx={{ width: { xs: 320, sm: 480, md: 560 } }}>
-          <Chessboard
-            options={{
-              position: fen,
-              boardOrientation: myColor ?? 'white',
-              animationDurationInMs: 100,
-              allowDragging: isMyTurn && !gameOver,
-              canDragPiece: ({ piece }) => {
-                if (!myColor || !isMyTurn || gameOver) return false;
-                const pieceColor = piece[0] === 'w' ? 'white' : 'black';
-                return pieceColor === myColor;
-              },
-              onPieceDrop: handlePieceDrop,
-              onSquareClick: handleSquareClick,
-              squareStyles: buildSquareStyles(),
-              allowDrawingArrows: true,
-            }}
-          />
+          <Chessboard options={chessboardOptions} />
         </Box>
 
         {/* My info + clock */}

@@ -86,7 +86,7 @@ These are non-negotiable constraints. Apply them to every code change.
 ### Architectural axioms
 - The client never determines remaining time or timeouts.
 - Clocks are re-synchronized only on state mutations (move, resign, abort) — the server does not stream continuous ticks.
-- Native WebSocket `Ping`/`Pong` binary frames are used exclusively for RTT measurement, independent of game payloads.
+- Server measures network latency server-side; client does not perform RTT measurement.
 
 ### 3-way move handshake
 
@@ -124,9 +124,8 @@ newBalance = activePlayerTime - timeSpent + increment
 ```
 
 ### Lag compensation (anti-cheat)
-- Server sends `Ping` frames every 1–2 s; browser auto-responds with native `Pong` (unkillable by extensions).
-- If client-implied latency deviates significantly from the Ping baseline, discard the client metric.
-- **Hard cap:** Regardless of measured latency, clock refunds never exceed **400 ms**.
+- **Hard cap:** Clock refunds never exceed **400 ms** per move.
+- Backend measures move-to-move latency and applies fixed refund (not measured via client metrics).
 
 ### Server-authoritative timeouts
 Use Spring `ThreadPoolTaskScheduler` (or a Hashed Wheel Timer). When a player's turn starts, schedule a task `X` seconds out where `X` = their remaining time. Cancel on valid move. If it fires, publish a timeout `GameConcludedEvent` to Kafka.

@@ -63,6 +63,7 @@ export default function QueuePage() {
     clearInterval(window.__queueInterval);
     setQueued(false);
     setWaitSecs(0);
+    api.dequeue(tc, token).catch(() => {}); // best effort, ignore errors
   }
 
   function handlePlay() {

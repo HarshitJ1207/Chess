@@ -32,6 +32,11 @@ export const api = {
     body: JSON.stringify(body),
   }),
 
+  dequeue: (timeControl, token) => request(`${BASE.matchmaking}/dequeue?timeControl=${encodeURIComponent(timeControl)}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  }),
+
   getRating: (userId, token) => request(`${BASE.ratings}/${userId}`, {
     headers: authHeaders(token),
   }),
