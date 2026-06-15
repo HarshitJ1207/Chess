@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current State
 
-> This project is in early scaffolding. Do not assume any planned dependency exists until verified in the relevant build file.
+**Status:** Core microservices functional. Auth, matchmaking, game loop, WebSocket, and event streaming operational. Frontend click-and-move, drag-and-drop, and clock sync implemented.
 
-| Layer | What exists | Not yet added |
-|---|---|---|
-| `server/` | Spring Boot 4 + Gradle + Java 21 + Lombok | WebSocket, Redis, Kafka/Redpanda, chesslib, Eureka, JWT |
-| `client/` | Vite + React 19 | MUI, react-chessboard, Tailwind CSS |
+| Layer | What exists |
+|---|---|
+| `server/` | Spring Boot 4 + Gradle + Java 21 + Lombok + WebSocket + Redis + Kafka/Redpanda + chesslib + Eureka + JWT |
+| `client/` | Vite + React 19 + MUI + react-chessboard + react-router + zustand |
+| Infrastructure | PostgreSQL 16 + Redis 7 + Redpanda (Kafka) + Nginx gateway |
 
 ---
 
@@ -191,24 +192,105 @@ npm run lint     # ESLint
 ### Full stack (Docker Compose)
 ```bash
 # Build and start everything
-docker-compose build
-docker-compose up
+docker compose up --build
 
 # Graceful shutdown
-docker-compose down
+docker compose down
 
 # Start only infrastructure (DB, cache, broker) for local service dev
-docker-compose up postgres redis redpanda
+docker compose up postgres redis redpanda
 ```
 
 ### Useful dev commands
+
+#### Service health & discovery
 ```bash
-# Check Eureka registry
+# Check Eureka registry (all registered services)
 curl http://localhost:8761/eureka/apps
 
-# Tail a service's logs
-docker-compose logs -f game-service
+# Check specific service (e.g., game-service)
+curl http://localhost:8761/eureka/apps/game-service
 
-# Redis CLI
-docker-compose exec redis redis-cli
+# Tail a service's logs
+docker compose logs -f game-service
+
+# View all running containers
+docker compose ps
+```
+
+#### Redis operations
+```bash
+# Open Redis CLI
+docker compose exec redis redis-cli
+
+# View matchmaking queues (all time controls)
+docker compose exec redis redis-cli KEYS "queue:*"
+
+# View specific queue with ratings (e.g., 5+0, 10+0, 15+10)
+docker compose exec redis redis-cli ZRANGE "queue:5+0" 0 -1 WITHSCORES
+
+# Clear entire Redis cache
+docker compose exec redis redis-cli FLUSHALL
+
+# Common Redis commands (run from redis-cli prompt)
+KEYS *                             # List all keys
+ZRANGE queue:5+0 0 -1 WITHSCORES  # View 5+0 queue with ratings
+SMEMBERS active_games              # List all active games
+GET player:{id}:game               # Get game ID for player
+HGETALL game:{gameId}              # Get game metadata
+LRANGE game:{gameId}:moves 0 -1    # View move log for a game
+ZRANGE leaderboard 0 -1 WITHSCORES # Top players by rating
+```
+
+#### Kafka/Redpanda operations
+```bash
+# View all topics
+docker compose exec redpanda rpk topic list
+
+# Check messages in a topic (latest 10)
+docker compose exec redpanda rpk topic consume match-request --num 10
+docker compose exec redpanda rpk topic consume game-concluded --num 10
+
+# Get topic details
+docker compose exec redpanda rpk topic describe match-request
+
+# Monitor a topic in real-time
+docker compose exec redpanda rpk topic consume game-concluded --follow
+
+# Check consumer group lag
+docker compose exec redpanda rpk group list
+```
+
+#### PostgreSQL operations
+```bash
+# Open psql console
+docker compose exec postgres psql -U chess
+
+# Common PostgreSQL commands (run from psql)
+\l                                 # List all databases
+\c auth_db                         # Connect to auth_db
+\dt                                # List tables in current DB
+SELECT * FROM users;               # View users
+SELECT * FROM player_ratings;      # View leaderboard
+SELECT * FROM games LIMIT 10;      # View recent games
+SELECT COUNT(*) FROM games;        # Count completed games
+\q                                 # Quit psql
+```
+
+#### Reset & debugging
+```bash
+# Flush Redis completely
+docker compose exec redis redis-cli FLUSHALL
+
+# Check a service's health endpoint
+curl http://localhost:8080/actuator/health
+
+# Watch Redpanda consumer group lag
+docker compose exec redpanda rpk group list
+
+# Check Eureka service details in JSON
+curl http://localhost:8761/eureka/apps/game-service | jq
+
+# Watch logs from all services
+docker compose logs -f
 ```
