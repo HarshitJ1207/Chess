@@ -122,10 +122,17 @@ export default function ReplayPage() {
   );
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, p: 2 }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: { xs: 'column', md: 'row' },
+      justifyContent: 'center',
+      alignItems: { xs: 'center', md: 'flex-start' },
+      gap: 2,
+      p: { xs: 1, sm: 2 },
+    }}>
       {/* Board */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Box sx={{ width: { xs: 320, sm: 480, md: 560 } }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', maxWidth: { xs: '100%', sm: 480, md: 560 } }}>
+        <Box>
           <Chessboard
             options={{
               position: currentFen,
@@ -151,7 +158,7 @@ export default function ReplayPage() {
       </Box>
 
       {/* Sidebar */}
-      <Paper sx={{ width: 300, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: { md: 560 } }}>
+      <Paper sx={{ width: '100%', maxWidth: { xs: '100%', md: 300 }, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: { md: 560 } }}>
         <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
           {game && (
             <>

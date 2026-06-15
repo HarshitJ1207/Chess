@@ -73,7 +73,7 @@ export default function QueuePage() {
 
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <Paper sx={{ p: 4, width: 400, textAlign: 'center' }}>
+      <Paper sx={{ p: 4, width: '100%', maxWidth: 400, mx: 2, textAlign: 'center' }}>
         <Typography variant="h5" fontWeight={700} mb={1}>Find a Game</Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
           Select time control

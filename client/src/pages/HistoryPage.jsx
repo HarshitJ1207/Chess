@@ -41,41 +41,43 @@ export default function HistoryPage() {
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: 3 }}>
       <Typography variant="h5" fontWeight={700} mb={3}>Game History</Typography>
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ color: 'text.secondary' }}>Date</TableCell>
-              <TableCell sx={{ color: 'text.secondary' }}>Result</TableCell>
-              <TableCell sx={{ color: 'text.secondary' }}>Termination</TableCell>
-              <TableCell sx={{ color: 'text.secondary' }}>Moves</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data?.content?.map((game) => (
-              <TableRow key={game.gameId} hover>
-                <TableCell>
-                  <Typography variant="body2">
-                    {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
-                  </Typography>
-                </TableCell>
-                <TableCell>{resultChip(game.result)}</TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">{game.termination}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Button size="small" onClick={() => navigate(`/replay/${game.gameId}`)}>
-                    Review
-                  </Button>
-                </TableCell>
+      <Paper sx={{ overflow: 'hidden' }}>
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ color: 'text.secondary' }}>Date</TableCell>
+                <TableCell sx={{ color: 'text.secondary' }}>Result</TableCell>
+                <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>Termination</TableCell>
+                <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>Moves</TableCell>
+                <TableCell />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {data?.content?.map((game) => (
+                <TableRow key={game.gameId} hover>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{resultChip(game.result)}</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                    <Typography variant="body2" color="text.secondary">{game.termination}</Typography>
+                  </TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                    <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button size="small" onClick={() => navigate(`/replay/${game.gameId}`)}>
+                      Review
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
         <TablePagination
           component="div"
           count={data?.totalElements ?? 0}

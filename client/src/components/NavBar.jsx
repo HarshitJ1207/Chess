@@ -25,13 +25,13 @@ export default function NavBar() {
         <Box sx={{ flexGrow: 1 }} />
 
         {username ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button onClick={() => navigate('/history')} sx={{ color: 'text.secondary' }}>History</Button>
-            <Button onClick={() => navigate('/')} sx={{ color: 'text.secondary' }}>Home</Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+            <Button onClick={() => navigate('/history')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>History</Button>
+            <Button onClick={() => navigate('/')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>Home</Button>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
               {username[0].toUpperCase()}
             </Avatar>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>{username}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', display: { xs: 'none', md: 'block' } }}>{username}</Typography>
             <Button onClick={handleLogout} sx={{ color: 'text.secondary' }}>Logout</Button>
           </Box>
         ) : (

@@ -96,10 +96,10 @@ export default function DashboardPage() {
   const { userId, username, token } = useAuthStore();
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: 'auto', p: 3 }}>
+    <Box sx={{ maxWidth: 1100, mx: 'auto', p: { xs: 2, sm: 3 } }}>
       <Grid container spacing={3}>
         {/* Profile + Play */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontSize: 24 }}>
@@ -133,7 +133,7 @@ export default function DashboardPage() {
         </Grid>
 
         {/* Leaderboard */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" fontWeight={700} mb={2}>Leaderboard</Typography>
             <Leaderboard token={token} />

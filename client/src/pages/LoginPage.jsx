@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <Paper sx={{ p: 4, width: 360 }}>
+      <Paper sx={{ p: 4, width: '100%', maxWidth: 360, mx: 2 }}>
         <Typography variant="h5" fontWeight={700} mb={3}>Sign in</Typography>
 
         {mutation.isError && (
