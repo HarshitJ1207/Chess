@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import {
   Box, Paper, Typography, Button, Divider, TextField, IconButton,
-  List, ListItem, Chip, Alert, Tooltip,
+  Alert, Tooltip,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FlagIcon from '@mui/icons-material/Flag';
@@ -26,7 +26,7 @@ function MoveList({ moves }) {
   }
 
   return (
-    <Box sx={{ flex: 1, overflowY: 'auto', px: 1 }}>
+    <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 1 }}>
       {pairs.map((p) => (
         <Box key={p.n} sx={{ display: 'flex', gap: 1, py: 0.25 }}>
           <Typography variant="body2" color="text.secondary" sx={{ minWidth: 28 }}>{p.n}.</Typography>
@@ -52,14 +52,14 @@ function Chat({ messages, onSend }) {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 200 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 150, sm: 200 }, minHeight: 0 }}>
       <Typography variant="caption" color="text.secondary" sx={{ px: 1, py: 0.5 }}>Chat</Typography>
       <Divider />
       <Box sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
         {messages.map((m, i) => (
           <Box key={i} sx={{ mb: 0.5 }}>
             <Typography component="span" variant="caption" color="primary.main">{m.user}: </Typography>
-            <Typography component="span" variant="caption">{m.text}</Typography>
+            <Typography component="span" variant="caption" sx={{ wordBreak: 'break-word' }}>{m.text}</Typography>
           </Box>
         ))}
         <div ref={endRef} />
@@ -102,6 +102,16 @@ export default function GamePage() {
   const chessRef = useRef(new Chess());
   const { whiteMs, blackMs, sync } = useClock();
 
+  function clearMoveSelection() {
+    setMoveFrom('');
+    setOptionSquares({});
+  }
+
+  function isMyPiece(square) {
+    const piece = chessRef.current.get(square);
+    return Boolean(piece && piece.color === (myColor === 'white' ? 'w' : 'b'));
+  }
+
   const handleMessage = useCallback((msg) => {
     switch (msg.t) {
       case 'init': {
@@ -111,6 +121,10 @@ export default function GamePage() {
           setFen(msg.d.fen);
           chessRef.current.load(msg.d.fen);
         }
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
         if (msg.d.clock) {
           sync(msg.d.clock, msg.d.turn ?? 'white');
           setActiveColor(msg.d.turn ?? 'white');
@@ -122,8 +136,10 @@ export default function GamePage() {
         const d = msg.d;
         chessRef.current.load(d.fen);
         setFen(d.fen);
-        setSelectedSquare(null);
-        setLegalSquares([]);
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
         const nextActive = d.ply % 2 === 0 ? 'white' : 'black';
         setActiveColor(nextActive);
         if (d.clock) sync(d.clock, nextActive);
@@ -134,20 +150,37 @@ export default function GamePage() {
         break;
       }
       case 'chat': {
-        setChatMessages((prev) => [...prev, { user: msg.d.color, text: msg.d.msg }]);
+        if (msg.d.from !== userId) {
+          setChatMessages((prev) => [...prev, { user: msg.d.color, text: msg.d.msg }]);
+        }
         break;
       }
       case 'draw': {
         if (msg.d.action === 'offer') {
-          setOpponentDrawOffer(true);
-        } else if (msg.d.action === 'declined') {
+          const offeredByMe = msg.d.by === myColor;
+          setDrawOffered(offeredByMe);
+          setOpponentDrawOffer(!offeredByMe);
+        } else if (msg.d.action === 'declined' || msg.d.action === 'decline') {
           setDrawOffered(false);
+          setOpponentDrawOffer(false);
         }
         break;
       }
       case 'end': {
         setGameOver(msg.d);
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
         sync(msg.d.clock ?? { white: 0, black: 0 }, null);
+        break;
+      }
+      case '_connecting': {
+        setWsStatus('connecting');
+        break;
+      }
+      case '_open': {
+        setWsStatus('connected');
         break;
       }
       case '_error':
@@ -156,7 +189,7 @@ export default function GamePage() {
         break;
       }
     }
-  }, [sync]);
+  }, [myColor, sync, userId]);
 
   const { send } = useGameSocket(gameId, token, handleMessage);
 
@@ -184,13 +217,13 @@ export default function GamePage() {
     return true;
   }
 
-  function onSquareClick({ square, piece }) {
+  function onSquareClick({ square }) {
     if (!myColor || activeColor !== myColor) return;
     const chess = chessRef.current;
 
     // No piece selected yet
     if (!moveFrom) {
-      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+      if (isMyPiece(square)) {
         const hasMoveOptions = getMoveOptions(square);
         if (hasMoveOptions) {
           setMoveFrom(square);
@@ -205,12 +238,11 @@ export default function GamePage() {
 
     if (!foundMove) {
       // Invalid move, check if clicking new piece
-      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+      if (isMyPiece(square)) {
         const hasMoveOptions = getMoveOptions(square);
         setMoveFrom(hasMoveOptions ? square : '');
       } else {
-        setMoveFrom('');
-        setOptionSquares({});
+        clearMoveSelection();
       }
       return;
     }
@@ -228,16 +260,14 @@ export default function GamePage() {
       const uci = `${moveFrom}${square}${isPromotion ? 'q' : ''}`;
       send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
 
-      setMoveFrom('');
-      setOptionSquares({});
-    } catch (e) {
+      clearMoveSelection();
+    } catch {
       // Move failed, try selecting the clicked square as new piece
-      if (piece && piece.color === (myColor === 'white' ? 'w' : 'b')) {
+      if (isMyPiece(square)) {
         const hasMoveOptions = getMoveOptions(square);
         setMoveFrom(hasMoveOptions ? square : '');
       } else {
-        setMoveFrom('');
-        setOptionSquares({});
+        clearMoveSelection();
       }
     }
   }
@@ -258,8 +288,7 @@ export default function GamePage() {
       const uci = `${sourceSquare}${targetSquare}${isPromotion ? 'q' : ''}`;
       send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
 
-      setMoveFrom('');
-      setOptionSquares({});
+      clearMoveSelection();
       return true;
     } catch {
       return false;
@@ -270,6 +299,7 @@ export default function GamePage() {
   const opponentColor = myColor === 'white' ? 'black' : 'white';
   const myMs = myColor === 'white' ? whiteMs : blackMs;
   const opponentMs = myColor === 'white' ? blackMs : whiteMs;
+  const hasPendingDrawOffer = drawOffered || opponentDrawOffer;
 
   const chessboardOptions = {
     position: fen,
@@ -297,7 +327,7 @@ export default function GamePage() {
 
   function handleDrawDecline() {
     setOpponentDrawOffer(false);
-    send({ t: 'draw', d: { action: 'declined' } });
+    send({ t: 'draw', d: { action: 'decline' } });
   }
 
   function handleChatSend(text) {
@@ -306,25 +336,46 @@ export default function GamePage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: 2, p: 2, minHeight: '90vh' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', lg: 'row' },
+        justifyContent: 'center',
+        alignItems: { xs: 'center', lg: 'flex-start' },
+        gap: { xs: 1.5, sm: 2 },
+        p: { xs: 1, sm: 2 },
+        minHeight: '90vh',
+        width: '100%',
+        overflowX: 'hidden',
+      }}
+    >
       {/* Board column */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+          width: '100%',
+          maxWidth: 560,
+          flexShrink: 0,
+        }}
+      >
         {/* Opponent info + clock */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="body1" fontWeight={600} color="text.secondary">
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography variant="body1" fontWeight={600} color="text.secondary" noWrap sx={{ minWidth: 0 }}>
             Opponent ({opponentColor})
           </Typography>
           <ClockDisplay ms={opponentMs} active={!isMyTurn && !gameOver} color={opponentColor} />
         </Box>
 
         {/* Chessboard */}
-        <Box sx={{ width: { xs: 320, sm: 480, md: 560 } }}>
+        <Box sx={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1' }}>
           <Chessboard options={chessboardOptions} />
         </Box>
 
         {/* My info + clock */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="body1" fontWeight={600}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography variant="body1" fontWeight={600} noWrap sx={{ minWidth: 0 }}>
             {username} ({myColor ?? '…'})
           </Typography>
           <ClockDisplay ms={myMs} active={isMyTurn && !gameOver} color={myColor ?? '…'} />
@@ -332,7 +383,18 @@ export default function GamePage() {
       </Box>
 
       {/* Sidebar */}
-      <Paper sx={{ width: 260, display: 'flex', flexDirection: 'column', height: 600, p: 0, overflow: 'hidden' }}>
+      <Paper
+        sx={{
+          width: '100%',
+          maxWidth: { xs: 560, lg: 300 },
+          display: 'flex',
+          flexDirection: 'column',
+          height: { xs: 'min(52vh, 420px)', sm: 460, lg: 600 },
+          minHeight: { xs: 320, sm: 380 },
+          p: 0,
+          overflow: 'hidden',
+        }}
+      >
         {/* Status bar */}
         <Box sx={{ px: 2, py: 1, bgcolor: wsStatus === 'disconnected' ? 'error.dark' : 'background.paper' }}>
           {wsStatus === 'disconnected' && (
@@ -361,7 +423,7 @@ export default function GamePage() {
         <Divider />
 
         {/* Move list */}
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: 1 }}>
           <MoveList moves={sanMoves} />
         </Box>
 
@@ -380,9 +442,9 @@ export default function GamePage() {
                 <FlagIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title={drawOffered ? 'Draw offered' : 'Offer draw'}>
+            <Tooltip title={opponentDrawOffer ? 'Respond to draw offer' : drawOffered ? 'Draw offered' : 'Offer draw'}>
               <span>
-                <IconButton size="small" onClick={handleDrawOffer} disabled={drawOffered}>
+                <IconButton size="small" onClick={handleDrawOffer} disabled={hasPendingDrawOffer}>
                   <HandshakeIcon fontSize="small" />
                 </IconButton>
               </span>
