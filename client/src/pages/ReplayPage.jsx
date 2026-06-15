@@ -151,18 +151,23 @@ export default function ReplayPage() {
       </Box>
 
       {/* Sidebar */}
-      <Paper sx={{ width: 260, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Box sx={{ p: 2 }}>
+      <Paper sx={{ width: 300, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: { md: 560 } }}>
+        <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
           {game && (
             <>
-              <Chip
-                label={resultLabel(game.result)}
-                size="small"
-                color={game.result === '1-0' ? 'default' : game.result === '0-1' ? 'default' : 'primary'}
-                sx={{ mb: 1 }}
-              />
-              <Typography variant="caption" display="block" color="text.secondary">
-                {game.termination} · {sanMoves.length} half-moves
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Chip
+                  label={resultLabel(game.result)}
+                  size="medium"
+                  color={game.result === '1-0' ? 'success' : game.result === '0-1' ? 'error' : 'primary'}
+                  variant="filled"
+                />
+                <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', color: 'text.secondary' }}>
+                  {game.termination}
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {Math.ceil(sanMoves.length / 2)} moves ({sanMoves.length} plies)
               </Typography>
             </>
           )}

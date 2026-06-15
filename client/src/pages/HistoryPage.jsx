@@ -57,7 +57,7 @@ export default function HistoryPage() {
               <TableRow key={game.gameId} hover>
                 <TableCell>
                   <Typography variant="body2">
-                    {game.createdAt ? new Date(game.createdAt).toLocaleDateString() : '—'}
+                    {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
                   </Typography>
                 </TableCell>
                 <TableCell>{resultChip(game.result)}</TableCell>

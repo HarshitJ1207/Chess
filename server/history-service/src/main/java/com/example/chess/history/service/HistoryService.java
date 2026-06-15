@@ -48,4 +48,9 @@ public class HistoryService {
     public Page<ArchivedGame> gamesForPlayer(String playerId, Pageable pageable) {
         return repository.findByWhitePlayerIdOrBlackPlayerIdOrderByPlayedAtDesc(playerId, playerId, pageable);
     }
+
+    @Transactional(readOnly = true)
+    public ArchivedGame getGame(String gameId) {
+        return repository.findById(gameId).orElse(null);
+    }
 }
