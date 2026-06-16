@@ -203,46 +203,48 @@ function Leaderboard({ token }) {
   if (isLoading) return <CircularProgress size={20} />;
   if (!data) return <Typography color="text.secondary">No data</Typography>;
 
-  const rows = expanded ? data.slice(0, 50) : data.slice(0, 8);
+  const rows = expanded ? data : data.slice(0, 8);
 
   return (
     <Box>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ color: 'text.secondary', width: 40 }}>#</TableCell>
-            <TableCell sx={{ color: 'text.secondary' }}>Player</TableCell>
-            <TableCell sx={{ color: 'text.secondary' }} align="right">Rating</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((entry, i) => (
-            <TableRow key={entry.username} sx={{ '&:last-child td': { border: 0 } }}>
-              <TableCell sx={{ py: 1 }}>
-                {i === 0 ? <EmojiEventsIcon sx={{ color: '#f6c90e', fontSize: 16 }} /> :
-                 i === 1 ? <EmojiEventsIcon sx={{ color: '#c0c0c0', fontSize: 16 }} /> :
-                 i === 2 ? <EmojiEventsIcon sx={{ color: '#cd7f32', fontSize: 16 }} /> :
-                 <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
-              </TableCell>
-              <TableCell sx={{ py: 1 }}>
-                <Typography variant="body2" fontWeight={500}>{formatUsername(entry.username)}</Typography>
-              </TableCell>
-              <TableCell align="right" sx={{ py: 1 }}>
-                <Typography variant="body2" fontWeight={600}>{Math.round(entry.rating)}</Typography>
-              </TableCell>
+      <Box sx={{ maxHeight: expanded ? 500 : 'none', overflowY: expanded ? 'auto' : 'visible', overflowX: 'hidden', pr: expanded ? 1 : 0 }}>
+        <Table size="small" stickyHeader={expanded}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ color: 'text.secondary', width: 40, bgcolor: 'background.paper' }}>#</TableCell>
+              <TableCell sx={{ color: 'text.secondary', bgcolor: 'background.paper' }}>Player</TableCell>
+              <TableCell sx={{ color: 'text.secondary', bgcolor: 'background.paper' }} align="right">Rating</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {rows.map((entry, i) => (
+              <TableRow key={entry.username} sx={{ '&:last-child td': { border: 0 } }}>
+                <TableCell sx={{ py: 1 }}>
+                  {i === 0 ? <EmojiEventsIcon sx={{ color: '#f6c90e', fontSize: 16 }} /> :
+                   i === 1 ? <EmojiEventsIcon sx={{ color: '#c0c0c0', fontSize: 16 }} /> :
+                   i === 2 ? <EmojiEventsIcon sx={{ color: '#cd7f32', fontSize: 16 }} /> :
+                   <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
+                </TableCell>
+                <TableCell sx={{ py: 1 }}>
+                  <Typography variant="body2" fontWeight={500}>{formatUsername(entry.username)}</Typography>
+                </TableCell>
+                <TableCell align="right" sx={{ py: 1 }}>
+                  <Typography variant="body2" fontWeight={600}>{Math.round(entry.rating)}</Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
 
       {data.length > 8 && (
         <Button
           size="small"
           onClick={() => setExpanded((e) => !e)}
           endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          sx={{ mt: 1.5, color: 'text.secondary', textTransform: 'none' }}
+          sx={{ mt: 1.5, color: 'text.secondary', textTransform: 'none', width: '100%' }}
         >
-          {expanded ? 'Show less' : `Show top 50 (${data.length} total)`}
+          {expanded ? 'Show less' : `Show more`}
         </Button>
       )}
     </Box>

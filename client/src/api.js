@@ -42,7 +42,7 @@ export const api = {
     headers: authHeaders(token),
   }),
 
-  getLeaderboard: (token) => request(`${BASE.ratings}/leaderboard`, {
+  getLeaderboard: (token) => request(`${BASE.ratings}/leaderboard?top=100`, {
     headers: authHeaders(token),
   }),
 
