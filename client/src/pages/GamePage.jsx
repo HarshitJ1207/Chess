@@ -4,7 +4,7 @@ import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import {
   Box, Paper, Typography, Button, Divider, TextField, IconButton,
-  Alert, Tooltip,
+  Alert, Tooltip
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FlagIcon from '@mui/icons-material/Flag';
@@ -13,6 +13,7 @@ import { useAuthStore } from '../store';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useClock } from '../hooks/useClock';
 import ClockDisplay from '../components/ClockDisplay';
+import { api } from '../api';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -47,20 +48,44 @@ function MoveList({ moves }) {
     pairs.push({ n: i / 2 + 1, w: moves[i], b: moves[i + 1] });
   }
 
+  if (moves.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', py: 4 }}>
+        <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.6 }}>No moves played yet</Typography>
+      </Box>
+    );
+  }
+
   return (
-    <Box ref={scrollRef} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 1 }}>
-      {pairs.map((p) => (
-        <Box key={p.n} sx={{ display: 'flex', gap: 1, py: 0.25 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 28 }}>{p.n}.</Typography>
-          <Typography variant="body2" sx={{ minWidth: 52 }}>{p.w}</Typography>
-          <Typography variant="body2" color="text.secondary">{p.b ?? ''}</Typography>
+    <Box ref={scrollRef} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {pairs.map((p, idx) => (
+        <Box
+          key={p.n}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            py: 0.5,
+            px: 1.5,
+            bgcolor: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+            borderRadius: '4px',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {p.n}.
+          </Typography>
+          <Typography variant="body2" sx={{ minWidth: 80, fontWeight: 750, color: 'text.primary' }}>
+            {p.w}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+            {p.b ?? ''}
+          </Typography>
         </Box>
       ))}
     </Box>
   );
 }
 
-function Chat({ messages, onSend }) {
+function Chat({ messages, onSend, myUsername }) {
   const [text, setText] = useState('');
   const scrollRef = useRef(null);
   useEffect(() => {
@@ -77,29 +102,67 @@ function Chat({ messages, onSend }) {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 150, sm: 200 }, minHeight: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ px: 1, py: 0.5 }}>Chat</Typography>
-      <Divider />
-      <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
-        {messages.map((m, i) => (
-          <Box key={i} sx={{ mb: 0.5 }}>
-            <Typography component="span" variant="caption" color="primary.main">{m.user}: </Typography>
-            <Typography component="span" variant="caption" sx={{ wordBreak: 'break-word' }}>{m.text}</Typography>
-          </Box>
-        ))}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 260, sm: 280 }, minHeight: 0, bgcolor: 'rgba(0,0,0,0.12)' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.75, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.65rem', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+        Live Chat
+      </Typography>
+      <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+        {messages.length === 0 ? (
+          <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic', display: 'block', textAlign: 'center', mt: 2 }}>
+            No messages yet. Send a friendly greeting!
+          </Typography>
+        ) : (
+          messages.map((m, i) => {
+            const isMe = m.user === myUsername;
+            return (
+              <Box key={i} sx={{ mb: 0.75, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.25 }}>
+                  <Typography variant="caption" fontWeight={700} sx={{ color: isMe ? 'primary.main' : 'secondary.main', fontSize: '0.7rem' }}>
+                    {m.user}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    bgcolor: isMe ? 'rgba(10, 113, 88, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid',
+                    borderColor: isMe ? 'rgba(10, 113, 88, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                    borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    px: 1.5,
+                    py: 0.75,
+                    maxWidth: '85%',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ wordBreak: 'break-word', fontSize: '0.8rem', color: 'text.primary' }}>
+                    {m.text}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })
+        )}
       </Box>
-      <Divider />
-      <Box sx={{ display: 'flex', gap: 1, p: 1 }}>
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />
+      <Box sx={{ display: 'flex', gap: 1, p: 1, bgcolor: 'background.paper' }}>
         <TextField
           size="small"
           fullWidth
-          placeholder="Message…"
+          placeholder="Send a message..."
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           inputProps={{ maxLength: 200 }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: 'rgba(0,0,0,0.15)',
+              borderRadius: '8px',
+              '& fieldset': { borderColor: 'rgba(255,255,255,0.08)' },
+              '&:hover fieldset': { borderColor: 'primary.main' },
+            }
+          }}
         />
-        <IconButton size="small" onClick={handleSend} color="primary"><SendIcon fontSize="small" /></IconButton>
+        <IconButton size="small" onClick={handleSend} color="primary" sx={{ bgcolor: 'rgba(10, 113, 88, 0.15)', borderRadius: '8px', '&:hover': { bgcolor: 'primary.main', color: '#fff' } }}>
+          <SendIcon fontSize="small" />
+        </IconButton>
       </Box>
     </Box>
   );
@@ -123,9 +186,29 @@ export default function GamePage() {
   const [optionSquares, setOptionSquares] = useState({});
   const [opponentUsername, setOpponentUsername] = useState('Opponent');
 
+  const [myRating, setMyRating] = useState(null);
+  const [opponentRating, setOpponentRating] = useState(null);
+
   const actionCounter = useRef(0);
   const chessRef = useRef(new Chess());
   const { whiteMs, blackMs, sync } = useClock();
+
+  // Fetch Glicko ratings
+  useEffect(() => {
+    if (username && token) {
+      api.getRating(username, token)
+        .then(r => setMyRating(Math.round(r.rating)))
+        .catch(() => setMyRating(1500));
+    }
+  }, [username, token]);
+
+  useEffect(() => {
+    if (opponentUsername && opponentUsername !== 'Opponent' && token) {
+      api.getRating(opponentUsername, token)
+        .then(r => setOpponentRating(Math.round(r.rating)))
+        .catch(() => setOpponentRating(1500));
+    }
+  }, [opponentUsername, token]);
 
   function clearMoveSelection() {
     setMoveFrom('');
@@ -339,6 +422,8 @@ export default function GamePage() {
     squareStyles: optionSquares,
     animationDurationInMs: 100,
     arePiecesDraggable: isMyTurn && !gameOver,
+    customDarkSquareStyle: { backgroundColor: '#769656' },
+    customLightSquareStyle: { backgroundColor: '#eeeed2' },
   };
 
   function handleResign() {
@@ -372,126 +457,241 @@ export default function GamePage() {
         flexDirection: { xs: 'column', lg: 'row' },
         justifyContent: 'center',
         alignItems: { xs: 'center', lg: 'flex-start' },
-        gap: { xs: 1.5, sm: 2 },
-        p: { xs: 1, sm: 2 },
+        gap: { xs: 2.5, sm: 3, lg: 4 },
+        p: { xs: 1.5, sm: 3 },
         minHeight: '90vh',
         width: '100%',
+        maxWidth: 1200,
+        mx: 'auto',
         overflowX: 'hidden',
       }}
     >
-      {/* Board column */}
+      {/* Board Column */}
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,
+          gap: 2,
           width: '100%',
           maxWidth: 560,
           flexShrink: 0,
         }}
       >
-        {/* Opponent info + clock */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography variant="body1" fontWeight={600} color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-            {opponentUsername} ({opponentColor})
-          </Typography>
-          <ClockDisplay ms={opponentMs} active={!isMyTurn && !gameOver} color={opponentColor} />
-        </Box>
+        {/* Opponent Profile Card */}
+        <Paper
+          elevation={0}
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 1.5,
+            bgcolor: 'rgba(30, 28, 25, 0.4)',
+            border: '1px solid',
+            borderColor: activeColor === opponentColor && !gameOver ? 'rgba(10, 113, 88, 0.4)' : '#2a2825',
+            borderRadius: '12px',
+            width: '100%',
+            boxShadow: activeColor === opponentColor && !gameOver ? '0 0 15px rgba(10, 113, 88, 0.1)' : 'none',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
+              {opponentUsername}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" fontWeight={500}>
+              Rating: {opponentRating !== null ? opponentRating : '1500'}
+            </Typography>
+          </Box>
+          <ClockDisplay ms={opponentMs} active={activeColor === opponentColor && !gameOver} color={opponentColor} />
+        </Paper>
 
-        {/* Chessboard */}
-        <Box sx={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1' }}>
+        {/* Chessboard Box Container */}
+        <Box 
+          sx={{ 
+            width: '100%', 
+            maxWidth: 560, 
+            aspectRatio: '1 / 1',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+            border: '4px solid #1e1c19',
+          }}
+        >
           <Chessboard options={chessboardOptions} />
         </Box>
 
-        {/* My info + clock */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography variant="body1" fontWeight={600} noWrap sx={{ minWidth: 0 }}>
-            {username} ({myColor ?? '…'})
-          </Typography>
-          <ClockDisplay ms={myMs} active={isMyTurn && !gameOver} color={myColor ?? '…'} />
-        </Box>
+        {/* My Profile Card */}
+        <Paper
+          elevation={0}
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 1.5,
+            bgcolor: 'rgba(30, 28, 25, 0.4)',
+            border: '1px solid',
+            borderColor: activeColor === myColor && !gameOver ? 'rgba(10, 113, 88, 0.4)' : '#2a2825',
+            borderRadius: '12px',
+            width: '100%',
+            boxShadow: activeColor === myColor && !gameOver ? '0 0 15px rgba(10, 113, 88, 0.1)' : 'none',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
+              {username}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" fontWeight={500}>
+              Rating: {myRating !== null ? myRating : '1500'}
+            </Typography>
+          </Box>
+          <ClockDisplay ms={myMs} active={activeColor === myColor && !gameOver} color={myColor ?? '...'} />
+        </Paper>
       </Box>
 
-      {/* Sidebar */}
+      {/* Sidebar Game Panel */}
       <Paper
+        elevation={4}
         sx={{
           width: '100%',
-          maxWidth: { xs: 560, lg: 300 },
+          maxWidth: { xs: 560, lg: 320 },
           display: 'flex',
           flexDirection: 'column',
-          height: { xs: 'min(52vh, 420px)', sm: 460, lg: 600 },
-          minHeight: { xs: 320, sm: 380 },
-          p: 0,
+          height: { xs: 'auto', lg: 664 },
+          bgcolor: 'rgba(30, 28, 25, 0.6)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: '16px',
           overflow: 'hidden',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.35)',
         }}
       >
-        {/* Status bar */}
-        <Box sx={{ px: 2, py: 1, bgcolor: wsStatus === 'disconnected' ? 'error.dark' : 'background.paper' }}>
+        {/* Connection/Turn/Outcome Status Bar */}
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.05)', bgcolor: 'rgba(0,0,0,0.1)' }}>
           {wsStatus === 'disconnected' && (
-            <Alert severity="error" sx={{ py: 0 }}>Connection lost</Alert>
+            <Alert severity="error" variant="filled" sx={{ py: 0.5, borderRadius: '8px', fontSize: '0.85rem', mb: 1 }}>
+              Connection lost
+            </Alert>
           )}
-          {gameOver && (
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                {gameOver.result === '1-0' ? 'White wins' :
-                 gameOver.result === '0-1' ? 'Black wins' : 'Draw'}
+          
+          {gameOver ? (
+            <Box sx={{ textAlign: 'center', py: 0.5 }}>
+              <Typography variant="subtitle1" fontWeight={800} color="primary.main" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {gameOver.result === '1-0' ? 'White Wins' :
+                 gameOver.result === '0-1' ? 'Black Wins' : 'Draw'}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
                 {formatTerminationReason(gameOver.termination)}
               </Typography>
             </Box>
-          )}
-          {opponentDrawOffer && !gameOver && (
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Typography variant="caption">Draw offered</Typography>
-              <Button size="small" variant="contained" onClick={handleDrawAccept}>Accept</Button>
-              <Button size="small" variant="outlined" onClick={handleDrawDecline}>Decline</Button>
+          ) : opponentDrawOffer ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 0.5 }}>
+              <Typography variant="body2" fontWeight={700} textAlign="center" color="warning.main">
+                Draw Offered by Opponent
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                <Button size="small" variant="contained" color="primary" onClick={handleDrawAccept} sx={{ flex: 1, borderRadius: '6px', textTransform: 'none' }}>
+                  Accept
+                </Button>
+                <Button size="small" variant="outlined" color="error" onClick={handleDrawDecline} sx={{ flex: 1, borderRadius: '6px', textTransform: 'none' }}>
+                  Decline
+                </Button>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: isMyTurn ? 'primary.main' : 'text.disabled',
+                    boxShadow: isMyTurn ? '0 0 8px rgba(10, 113, 88, 0.8)' : 'none',
+                    animation: isMyTurn ? 'pulse-turn 1.5s infinite alternate' : 'none',
+                    '@keyframes pulse-turn': {
+                      '0%': { opacity: 0.6 },
+                      '100%': { opacity: 1 }
+                    }
+                  }}
+                />
+                <Typography variant="subtitle2" fontWeight={800} sx={{ color: isMyTurn ? 'primary.light' : 'text.secondary' }}>
+                  {isMyTurn ? 'Your Turn' : "Opponent's Turn"}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.65rem' }}>
+                Live Match
+              </Typography>
             </Box>
           )}
         </Box>
 
-        <Divider />
-
-        {/* Move list */}
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: 1 }}>
+        {/* Moves notation section */}
+        <Box sx={{ flex: 1, minHeight: { xs: 120, lg: 0 }, overflowY: 'auto', p: 1, bgcolor: 'rgba(0,0,0,0.15)' }}>
           <MoveList moves={sanMoves} />
         </Box>
 
-        <Divider />
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />
 
-        {/* Chat */}
-        <Chat messages={chatMessages} onSend={handleChatSend} />
+        {/* Live Chat component */}
+        <Chat messages={chatMessages} onSend={handleChatSend} myUsername={username} />
 
-        <Divider />
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />
 
-        {/* Controls */}
+        {/* Controls footer */}
         {!gameOver && (
-          <Box sx={{ display: 'flex', gap: 1, p: 1 }}>
-            <Tooltip title="Resign">
-              <IconButton size="small" color="error" onClick={handleResign}>
-                <FlagIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={opponentDrawOffer ? 'Respond to draw offer' : drawOffered ? 'Draw offered' : 'Offer draw'}>
-              <span>
-                <IconButton size="small" onClick={handleDrawOffer} disabled={hasPendingDrawOffer}>
-                  <HandshakeIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Box sx={{ flexGrow: 1 }} />
-            <Button size="small" variant="outlined" onClick={() => navigate('/')}>
-              Home
+          <Box sx={{ display: 'flex', gap: 1, p: 1.5, bgcolor: 'background.paper' }}>
+            <Button
+              variant="outlined"
+              color="error"
+              size="medium"
+              onClick={handleResign}
+              startIcon={<FlagIcon />}
+              sx={{ flex: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}
+            >
+              Resign
+            </Button>
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="medium"
+              onClick={handleDrawOffer}
+              disabled={hasPendingDrawOffer}
+              startIcon={<HandshakeIcon />}
+              sx={{
+                flex: 1,
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 700,
+                borderColor: 'rgba(255,255,255,0.1)',
+                color: 'text.secondary',
+                '&:hover': { borderColor: 'text.primary', bgcolor: 'rgba(255,255,255,0.05)' }
+              }}
+            >
+              {drawOffered ? 'Draw Offered' : 'Offer Draw'}
             </Button>
           </Box>
         )}
+        
         {gameOver && (
-          <Box sx={{ display: 'flex', gap: 1, p: 1 }}>
-            <Button size="small" variant="contained" onClick={() => navigate('/queue')} sx={{ flex: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1.5, p: 1.5, bgcolor: 'background.paper' }}>
+            <Button
+              size="medium"
+              variant="contained"
+              color="primary"
+              onClick={() => navigate('/queue')}
+              sx={{ flex: 1, borderRadius: '8px', fontWeight: 700, textTransform: 'none' }}
+            >
               Play again
             </Button>
-            <Button size="small" variant="outlined" onClick={() => navigate(`/replay/${gameId}`)}>
-              Review
+            <Button
+              size="medium"
+              variant="outlined"
+              color="inherit"
+              onClick={() => navigate(`/replay/${gameId}`)}
+              sx={{ flex: 1, borderRadius: '8px', fontWeight: 700, textTransform: 'none', borderColor: 'rgba(255,255,255,0.1)' }}
+            >
+              Review Game
             </Button>
           </Box>
         )}

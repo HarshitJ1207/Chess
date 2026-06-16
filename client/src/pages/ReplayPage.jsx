@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import {
   Box, Paper, Typography, IconButton, Button, Divider, CircularProgress,
-  Chip, Tooltip,
+  Chip, Tooltip
 } from '@mui/material';
 import FirstPageIcon from '@mui/icons-material/FirstPage';
 import LastPageIcon from '@mui/icons-material/LastPage';
@@ -38,19 +38,45 @@ function MoveList({ moves, currentPly, onSelect }) {
     pairs.push({ n: i / 2 + 1, w: { san: moves[i], ply: i + 1 }, b: moves[i + 1] ? { san: moves[i + 1], ply: i + 2 } : null });
   }
 
+  if (moves.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', py: 4 }}>
+        <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.6 }}>No moves in this game</Typography>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ flex: 1, overflowY: 'auto', px: 1 }}>
-      {pairs.map((p) => (
-        <Box key={p.n} sx={{ display: 'flex', gap: 1, py: 0.25 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 28 }}>{p.n}.</Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {pairs.map((p, idx) => (
+        <Box
+          key={p.n}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            py: 0.5,
+            px: 1.5,
+            bgcolor: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+            borderRadius: '4px',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {p.n}.
+          </Typography>
           <Typography
             variant="body2"
             sx={{
-              minWidth: 52,
+              minWidth: 80,
               cursor: 'pointer',
-              fontWeight: currentPly === p.w.ply ? 700 : 400,
-              color: currentPly === p.w.ply ? 'primary.main' : 'text.primary',
-              '&:hover': { color: 'primary.light' },
+              fontWeight: currentPly === p.w.ply ? 800 : 600,
+              color: currentPly === p.w.ply ? '#26a69a' : 'text.primary',
+              textShadow: currentPly === p.w.ply ? '0 0 8px rgba(38,166,154,0.4)' : 'none',
+              bgcolor: currentPly === p.w.ply ? 'rgba(38,166,154,0.12)' : 'transparent',
+              px: 0.75,
+              py: 0.25,
+              borderRadius: '4px',
+              transition: 'all 0.15s ease',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: 'primary.light' },
             }}
             onClick={() => onSelect(p.w.ply)}
           >
@@ -61,9 +87,15 @@ function MoveList({ moves, currentPly, onSelect }) {
               variant="body2"
               sx={{
                 cursor: 'pointer',
-                fontWeight: currentPly === p.b.ply ? 700 : 400,
-                color: currentPly === p.b.ply ? 'primary.main' : 'text.secondary',
-                '&:hover': { color: 'primary.light' },
+                fontWeight: currentPly === p.b.ply ? 800 : 500,
+                color: currentPly === p.b.ply ? '#26a69a' : 'text.secondary',
+                textShadow: currentPly === p.b.ply ? '0 0 8px rgba(38,166,154,0.4)' : 'none',
+                bgcolor: currentPly === p.b.ply ? 'rgba(38,166,154,0.12)' : 'transparent',
+                px: 0.75,
+                py: 0.25,
+                borderRadius: '4px',
+                transition: 'all 0.15s ease',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: 'primary.light' },
               }}
               onClick={() => onSelect(p.b.ply)}
             >
@@ -79,10 +111,13 @@ function MoveList({ moves, currentPly, onSelect }) {
 export default function ReplayPage() {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuthStore();
+  const { token, username } = useAuthStore();
   const [ply, setPly] = useState(0);
   const [copied, setCopied] = useState(false);
   const [arrows, setArrows] = useState([]);
+
+  const [whiteRating, setWhiteRating] = useState(null);
+  const [blackRating, setBlackRating] = useState(null);
 
   const { data: game, isLoading } = useQuery({
     queryKey: ['game', gameId],
@@ -100,6 +135,23 @@ export default function ReplayPage() {
   const maxPly = positions.length - 1;
 
   const currentFen = positions[ply]?.fen ?? positions[0].fen;
+
+  // Fetch player ratings
+  useEffect(() => {
+    if (game?.whiteUsername && token) {
+      api.getRating(game.whiteUsername, token)
+        .then(r => setWhiteRating(Math.round(r.rating)))
+        .catch(() => setWhiteRating(1500));
+    }
+    if (game?.blackUsername && token) {
+      api.getRating(game.blackUsername, token)
+        .then(r => setBlackRating(Math.round(r.rating)))
+        .catch(() => setBlackRating(1500));
+    }
+  }, [game, token]);
+
+  // Handle board orientation: look at the board from our player's perspective if we played black
+  const boardOrientation = game && game.blackUsername === username ? 'black' : 'white';
 
   function handleCopyPgn() {
     if (game?.pgn) {
@@ -140,17 +192,73 @@ export default function ReplayPage() {
   );
 
   return (
-    <Box sx={{
-      display: 'flex',
-      flexDirection: { xs: 'column', md: 'row' },
-      justifyContent: 'center',
-      alignItems: { xs: 'center', md: 'flex-start' },
-      gap: 2,
-      p: { xs: 1, sm: 2 },
-    }}>
-      {/* Board */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', maxWidth: { xs: '100%', sm: 480, md: 560 } }}>
-        <Box>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'center',
+        alignItems: { xs: 'center', md: 'flex-start' },
+        gap: { xs: 2.5, sm: 3, md: 4 },
+        p: { xs: 1.5, sm: 3 },
+        minHeight: '90vh',
+        width: '100%',
+        maxWidth: 1200,
+        mx: 'auto',
+        overflowX: 'hidden',
+      }}
+    >
+      {/* Board Column */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          width: '100%',
+          maxWidth: 560,
+          flexShrink: 0,
+        }}
+      >
+        {/* Top Profile Card */}
+        {game && (
+          <Paper
+            elevation={0}
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              p: 1.5,
+              bgcolor: 'rgba(30, 28, 25, 0.4)',
+              border: '1px solid #2a2825',
+              borderRadius: '12px',
+              width: '100%',
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
+                {boardOrientation === 'white' ? game.blackUsername : game.whiteUsername}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Rating: {boardOrientation === 'white' ? (blackRating ?? '1500') : (whiteRating ?? '1500')}
+              </Typography>
+            </Box>
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+              {boardOrientation === 'white' ? 'BLACK' : 'WHITE'}
+            </Typography>
+          </Paper>
+        )}
+
+        {/* Board Container */}
+        <Box 
+          sx={{ 
+            width: '100%', 
+            maxWidth: 560, 
+            aspectRatio: '1 / 1',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+            border: '4px solid #1e1c19',
+          }}
+        >
           <Chessboard
             options={{
               position: currentFen,
@@ -159,78 +267,132 @@ export default function ReplayPage() {
               arrows,
               onArrowsChange: ({ arrows: a }) => setArrows(a),
               animationDurationInMs: 150,
+              boardOrientation,
+              customDarkSquareStyle: { backgroundColor: '#769656' },
+              customLightSquareStyle: { backgroundColor: '#eeeed2' },
             }}
           />
         </Box>
 
+        {/* Bottom Profile Card */}
+        {game && (
+          <Paper
+            elevation={0}
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              p: 1.5,
+              bgcolor: 'rgba(30, 28, 25, 0.4)',
+              border: '1px solid #2a2825',
+              borderRadius: '12px',
+              width: '100%',
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
+                {boardOrientation === 'white' ? game.whiteUsername : game.blackUsername}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Rating: {boardOrientation === 'white' ? (whiteRating ?? '1500') : (blackRating ?? '1500')}
+              </Typography>
+            </Box>
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+              {boardOrientation === 'white' ? 'WHITE' : 'BLACK'}
+            </Typography>
+          </Paper>
+        )}
+
         {/* Nav controls */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-          <IconButton onClick={() => setPly(0)} disabled={ply === 0}><FirstPageIcon /></IconButton>
-          <IconButton onClick={() => setPly((p) => Math.max(0, p - 1))} disabled={ply === 0}><NavigateBeforeIcon /></IconButton>
-          <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center', minWidth: 60, textAlign: 'center' }}>
-            {ply}/{maxPly}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1.5, mt: 0.5, p: 1, bgcolor: 'rgba(30, 28, 25, 0.4)', borderRadius: '12px', border: '1px solid #2a2825' }}>
+          <IconButton onClick={() => setPly(0)} disabled={ply === 0} sx={{ color: 'text.secondary' }}><FirstPageIcon /></IconButton>
+          <IconButton onClick={() => setPly((p) => Math.max(0, p - 1))} disabled={ply === 0} sx={{ color: 'text.secondary' }}><NavigateBeforeIcon /></IconButton>
+          <Typography variant="body2" fontWeight={700} sx={{ alignSelf: 'center', minWidth: 64, textAlign: 'center', fontVariantNumeric: 'tabular-nums', letterSpacing: 0.5 }}>
+            {ply} / {maxPly}
           </Typography>
-          <IconButton onClick={() => setPly((p) => Math.min(maxPly, p + 1))} disabled={ply === maxPly}><NavigateNextIcon /></IconButton>
-          <IconButton onClick={() => setPly(maxPly)} disabled={ply === maxPly}><LastPageIcon /></IconButton>
+          <IconButton onClick={() => setPly((p) => Math.min(maxPly, p + 1))} disabled={ply === maxPly} sx={{ color: 'text.secondary' }}><NavigateNextIcon /></IconButton>
+          <IconButton onClick={() => setPly(maxPly)} disabled={ply === maxPly} sx={{ color: 'text.secondary' }}><LastPageIcon /></IconButton>
         </Box>
       </Box>
 
-      {/* Sidebar */}
-      <Paper sx={{ width: '100%', maxWidth: { xs: '100%', md: 300 }, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: { md: 560 } }}>
-        <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
+      {/* Sidebar Game Panel */}
+      <Paper
+        elevation={4}
+        sx={{
+          width: '100%',
+          maxWidth: { xs: 560, md: 320 },
+          display: 'flex',
+          flexDirection: 'column',
+          height: { xs: 'auto', md: 664 },
+          bgcolor: 'rgba(30, 28, 25, 0.6)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.35)',
+        }}
+      >
+        <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.1)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {game && (
             <>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
                 <Chip
                   label={resultLabel(game.result)}
                   size="medium"
                   color={game.result === '1-0' ? 'success' : game.result === '0-1' ? 'error' : 'primary'}
                   variant="filled"
+                  sx={{ fontWeight: 700 }}
                 />
-                <Typography variant="caption" fontWeight={700} sx={{ color: 'text.secondary' }}>
+                <Typography variant="caption" fontWeight={700} sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   {formatTerminationReason(game.termination)}
                 </Typography>
               </Box>
-              <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                <Typography variant="body2">White: <strong>{game.whiteUsername}</strong></Typography>
-                <Typography variant="body2">Black: <strong>{game.blackUsername}</strong></Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {Math.ceil(sanMoves.length / 2)} moves ({sanMoves.length} plies)
+              <Typography variant="caption" color="text.secondary" component="div">
+                Played on: {game.playedAt ? new Date(game.playedAt).toLocaleString() : 'N/A'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.25 }}>
+                Length: {Math.ceil(sanMoves.length / 2)} moves ({sanMoves.length} plies)
               </Typography>
             </>
           )}
         </Box>
-        <Divider />
 
         {/* Move list */}
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 1, maxHeight: 400 }}>
+        <Box sx={{ flex: 1, minHeight: { xs: 120, md: 0 }, overflowY: 'auto', p: 1.5, bgcolor: 'rgba(0,0,0,0.15)' }}>
           <MoveList moves={sanMoves} currentPly={ply} onSelect={setPly} />
         </Box>
 
-        <Divider />
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />
 
         {/* PGN */}
         {game?.pgn && (
-          <Box sx={{ p: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">PGN</Typography>
+          <Box sx={{ p: 1.5, bgcolor: 'rgba(0,0,0,0.12)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>PGN Data</Typography>
               <Tooltip title={copied ? 'Copied!' : 'Copy PGN'}>
-                <IconButton size="small" onClick={handleCopyPgn}>
+                <IconButton size="small" onClick={handleCopyPgn} sx={{ bgcolor: 'rgba(255,255,255,0.03)', '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </Box>
-            <Typography variant="caption" component="pre" sx={{ fontSize: 10, color: 'text.secondary', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {game.pgn}
-            </Typography>
+            <Box sx={{ bgcolor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', p: 1, maxHeight: 110, overflowY: 'auto' }}>
+              <Typography variant="caption" component="pre" sx={{ fontSize: 10, fontFamily: 'monospace', color: 'text.secondary', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {game.pgn}
+              </Typography>
+            </Box>
           </Box>
         )}
 
-        <Divider />
-        <Box sx={{ p: 1, display: 'flex', gap: 1 }}>
-          <Button size="small" onClick={() => navigate('/history')} sx={{ flex: 1 }}>History</Button>
-          <Button size="small" variant="contained" onClick={() => navigate('/queue')} sx={{ flex: 1 }}>Play</Button>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />
+        
+        {/* Buttons footer */}
+        <Box sx={{ p: 1.5, display: 'flex', gap: 1.5, bgcolor: 'background.paper' }}>
+          <Button size="medium" variant="outlined" color="inherit" onClick={() => navigate('/history')} sx={{ flex: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700, borderColor: 'rgba(255,255,255,0.1)' }}>
+            Match History
+          </Button>
+          <Button size="medium" variant="contained" color="primary" onClick={() => navigate('/queue')} sx={{ flex: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
+            Play
+          </Button>
         </Box>
       </Paper>
     </Box>
