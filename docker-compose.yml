@@ -84,11 +84,14 @@ services:
       dockerfile: nginx/Dockerfile
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       gateway:
         condition: service_healthy
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://localhost/ || wget -qO- http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 5
