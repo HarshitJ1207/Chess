@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Paper, TextField, Button, Typography, Link, Alert } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, Link, Alert, Divider } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../api';
@@ -33,50 +33,91 @@ export default function RegisterPage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-      <Paper sx={{ p: 4, width: '100%', maxWidth: 360, mx: 2 }}>
-        <Typography variant="h5" fontWeight={700} mb={3}>Create account</Typography>
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '85vh', py: 4 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 4,
+          width: '100%',
+          maxWidth: 380,
+          mx: 2,
+          borderRadius: '20px',
+          bgcolor: 'background.paper',
+          border: '1px solid #2a2825',
+          textAlign: 'center',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.25)',
+        }}
+      >
+        {/* Logo and Brand */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 3 }}>
+          <img src="/chessblitz-icon.svg" alt="ChessBlitz Logo" style={{ width: 32, height: 32 }} />
+          <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: '0.5px' }}>
+            ChessBlitz
+          </Typography>
+        </Box>
 
+        <Typography variant="h6" fontWeight={750} mb={0.5}>
+          Create account
+        </Typography>
         {mutation.isError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>
             {mutation.error?.message || 'Registration failed'}
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField
-            label="Username"
-            value={form.username}
-            onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-            error={!!errors.username}
-            helperText={errors.username}
-            required
-            autoFocus
-          />
-          <TextField
-            label="Email"
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            required
-          />
-          <TextField
-            label="Password"
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            error={!!errors.password}
-            helperText={errors.password || 'Minimum 8 characters'}
-            required
-          />
-          <Button type="submit" variant="contained" size="large" loading={mutation.isPending}>
-            Create account
-          </Button>
+        <Box sx={{ mt: 3.5 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            <TextField
+              label="Username"
+              value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              error={!!errors.username}
+              helperText={errors.username}
+              required
+              autoFocus
+              InputProps={{ sx: { borderRadius: '10px' } }}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              required
+              InputProps={{ sx: { borderRadius: '10px' } }}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              error={!!errors.password}
+              helperText={errors.password || 'Minimum 8 characters'}
+              required
+              InputProps={{ sx: { borderRadius: '10px' } }}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              loading={mutation.isPending}
+              sx={{
+                py: 1.4,
+                borderRadius: '10px',
+                fontWeight: 700,
+                textTransform: 'none',
+                fontSize: '0.95rem'
+              }}
+            >
+              Register
+            </Button>
+          </Box>
         </Box>
 
-        <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary', textAlign: 'center' }}>
+        {/* TODO: Add Google OAuth client integration in the future */}
+
+        <Typography variant="body2" sx={{ mt: 4, color: 'text.secondary', textAlign: 'center' }}>
           Have an account?{' '}
-          <Link component={RouterLink} to="/login">Sign in</Link>
+          <Link component={RouterLink} to="/login" sx={{ fontWeight: 600, textDecoration: 'none' }}>Sign in</Link>
         </Typography>
       </Paper>
     </Box>

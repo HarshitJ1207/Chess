@@ -115,6 +115,24 @@ export default function ReplayPage() {
     return 'Draw';
   }
 
+  function formatTerminationReason(termination) {
+    if (!termination) return '';
+    const map = {
+      draw_agreement: 'Draw by Agreement',
+      threefold: 'Threefold Repetition',
+      stalemate: 'Stalemate',
+      insufficient_material: 'Insufficient Material',
+      fifty_move: '50-Move Rule',
+      timeout: 'Timeout',
+      resignation: 'Resignation',
+      checkmate: 'Checkmate',
+      abort: 'Aborted',
+      draw: 'Draw by Agreement'
+    };
+    const normalized = termination.toLowerCase().replace(/[-]/g, '_');
+    return map[normalized] || (termination.charAt(0).toUpperCase() + termination.slice(1).replace(/_/g, ' '));
+  }
+
   if (isLoading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
       <CircularProgress />
@@ -169,8 +187,8 @@ export default function ReplayPage() {
                   color={game.result === '1-0' ? 'success' : game.result === '0-1' ? 'error' : 'primary'}
                   variant="filled"
                 />
-                <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', color: 'text.secondary' }}>
-                  {game.termination}
+                <Typography variant="caption" fontWeight={700} sx={{ color: 'text.secondary' }}>
+                  {formatTerminationReason(game.termination)}
                 </Typography>
               </Box>
               <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>

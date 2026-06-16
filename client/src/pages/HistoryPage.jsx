@@ -3,15 +3,97 @@ import {
   Box, Paper, Typography, Table, TableBody, TableCell, TableHead, TableRow,
   TablePagination, CircularProgress, Chip, Button,
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
+import BlockIcon from '@mui/icons-material/Block';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuthStore } from '../store';
 
-function resultChip(result) {
-  if (result === '1-0') return <Chip label="White wins" size="small" sx={{ bgcolor: '#f0f0f0', color: '#111' }} />;
-  if (result === '0-1') return <Chip label="Black wins" size="small" sx={{ bgcolor: '#333', color: '#fff' }} />;
-  return <Chip label="Draw" size="small" color="default" />;
+function formatTermination(termination) {
+  if (!termination) return '—';
+  const map = {
+    draw_agreement: 'Draw by Agreement',
+    threefold: 'Threefold Repetition',
+    stalemate: 'Stalemate',
+    insufficient_material: 'Insufficient Material',
+    fifty_move: '50-Move Rule',
+    timeout: 'Timeout',
+    resignation: 'Resignation',
+    checkmate: 'Checkmate',
+    abort: 'Aborted',
+    draw: 'Draw by Agreement'
+  };
+  const normalized = termination.toLowerCase().replace(/[-]/g, '_');
+  return map[normalized] || (termination.charAt(0).toUpperCase() + termination.slice(1).replace(/_/g, ' '));
+}
+
+function resultChip(result, isWhite) {
+  if (result === '1/2-1/2') {
+    return (
+      <Chip
+        icon={<RemoveCircleIcon style={{ color: '#b0bec5', fontSize: 16 }} />}
+        label="Draw"
+        size="small"
+        sx={{
+          bgcolor: 'rgba(144, 164, 174, 0.12)',
+          color: '#b0bec5',
+          fontWeight: 600,
+          border: '1px solid rgba(144, 164, 174, 0.25)',
+        }}
+      />
+    );
+  }
+  
+  if (result === '*' || result === 'aborted' || result === 'abort') {
+    return (
+      <Chip
+        icon={<BlockIcon style={{ color: '#b0bec5', fontSize: 16 }} />}
+        label="Aborted"
+        size="small"
+        sx={{
+          bgcolor: 'rgba(120, 144, 156, 0.12)',
+          color: '#b0bec5',
+          fontWeight: 600,
+          border: '1px solid rgba(120, 144, 156, 0.25)',
+        }}
+      />
+    );
+  }
+
+  const won = (result === '1-0' && isWhite) || (result === '0-1' && !isWhite);
+
+  if (won) {
+    return (
+      <Chip
+        icon={<CheckCircleIcon style={{ color: '#81c784', fontSize: 16 }} />}
+        label="Won"
+        size="small"
+        sx={{
+          bgcolor: 'rgba(76, 175, 80, 0.15)',
+          color: '#81c784',
+          fontWeight: 700,
+          border: '1px solid rgba(76, 175, 80, 0.3)',
+        }}
+      />
+    );
+  } else {
+    return (
+      <Chip
+        icon={<CancelIcon style={{ color: '#e57373', fontSize: 16 }} />}
+        label="Lost"
+        size="small"
+        sx={{
+          bgcolor: 'rgba(244, 67, 54, 0.12)',
+          color: '#e57373',
+          fontWeight: 700,
+          border: '1px solid rgba(244, 67, 54, 0.25)',
+        }}
+      />
+    );
+  }
 }
 
 export default function HistoryPage() {
@@ -64,12 +146,12 @@ export default function HistoryPage() {
                         {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
                       </Typography>
                     </TableCell>
-                    <TableCell>{resultChip(game.result)}</TableCell>
+                    <TableCell>{resultChip(game.result, game.whiteUsername === username)}</TableCell>
                     <TableCell>
                       <Typography variant="body2">{opp}</Typography>
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                      <Typography variant="body2" color="text.secondary">{game.termination}</Typography>
+                      <Typography variant="body2" color="text.secondary">{formatTermination(game.termination)}</Typography>
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                       <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>

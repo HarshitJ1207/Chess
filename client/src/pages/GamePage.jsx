@@ -16,6 +16,24 @@ import ClockDisplay from '../components/ClockDisplay';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+function formatTerminationReason(termination) {
+  if (!termination) return '';
+  const map = {
+    draw_agreement: 'Draw by Agreement',
+    threefold: 'Threefold Repetition',
+    stalemate: 'Stalemate',
+    insufficient_material: 'Insufficient Material',
+    fifty_move: '50-Move Rule',
+    timeout: 'Timeout',
+    resignation: 'Resignation',
+    checkmate: 'Checkmate',
+    abort: 'Aborted',
+    draw: 'Draw by Agreement'
+  };
+  const normalized = termination.toLowerCase().replace(/[-]/g, '_');
+  return map[normalized] || (termination.charAt(0).toUpperCase() + termination.slice(1).replace(/_/g, ' '));
+}
+
 function MoveList({ moves }) {
   const scrollRef = useRef(null);
   useEffect(() => {
@@ -419,7 +437,7 @@ export default function GamePage() {
                  gameOver.result === '0-1' ? 'Black wins' : 'Draw'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {gameOver.termination}
+                {formatTerminationReason(gameOver.termination)}
               </Typography>
             </Box>
           )}

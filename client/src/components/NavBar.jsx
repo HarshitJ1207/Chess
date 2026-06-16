@@ -14,13 +14,15 @@ export default function NavBar() {
   return (
     <AppBar position="static" sx={{ bgcolor: 'background.paper', borderBottom: '1px solid #2a2825' }} elevation={0}>
       <Toolbar>
-        <Typography
-          variant="h6"
-          sx={{ fontWeight: 700, cursor: 'pointer', color: 'primary.main', mr: 4 }}
+        <Box
           onClick={() => navigate('/')}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', mr: 4 }}
         >
-          ♟ Chess
-        </Typography>
+          <img src="/chessblitz-icon.svg" alt="ChessBlitz Logo" style={{ width: 28, height: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main', letterSpacing: '0.5px' }}>
+            ChessBlitz
+          </Typography>
+        </Box>
 
         <Box sx={{ flexGrow: 1 }} />
 
@@ -28,11 +30,20 @@ export default function NavBar() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
             <Button onClick={() => navigate('/history')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>History</Button>
             <Button onClick={() => navigate('/')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>Home</Button>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
-              {username[0].toUpperCase()}
-            </Avatar>
-            <Typography variant="body2" sx={{ color: 'text.secondary', display: { xs: 'none', md: 'block' } }}>{username}</Typography>
-            <Button onClick={handleLogout} sx={{ color: 'text.secondary' }}>Logout</Button>
+            <Button
+              onClick={handleLogout}
+              variant="outlined"
+              color="error"
+              size="small"
+              sx={{
+                borderRadius: '8px',
+                px: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Logout
+            </Button>
           </Box>
         ) : (
           <Box sx={{ display: 'flex', gap: 1 }}>
