@@ -238,5 +238,20 @@ services:
       timeout: 5s
       retries: 15
 
+  db-seeder:
+    build:
+      context: ./infra/db-seeder
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      rating-service:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+

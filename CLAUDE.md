@@ -293,3 +293,34 @@ curl http://localhost:8761/eureka/apps/game-service | jq
 # Watch logs from all services
 docker compose logs -f
 ```
+
+---
+
+## 8. Future Roadmap / Security Enhancements
+
+The following security architecture improvements are planned for production:
+
+1. **Asymmetric JWT Signing**:
+   - Transition from HMAC-SHA256 (symmetric shared secret) to **RS256** or **ES256**.
+   - Auth Service holds the private signing key.
+   - API Gateway dynamically fetches the public verification key via a **JWKS (JSON Web Key Set)** endpoint exposed at `/api/auth/.well-known/jwks.json`.
+
+2. **Access & Refresh Tokens**:
+   - Short-lived Access Tokens (e.g., 15-minute expiry) stored purely in-memory by the frontend client to protect against XSS.
+   - Long-lived Refresh Tokens (e.g., 7-day expiry) stored as `HttpOnly`, `Secure`, `SameSite=Strict` cookies.
+   - Active Refresh Tokens tracked in Redis to support immediate session revocation/logout.
+   - Client-side fetch interceptors to handle automatic silent token refreshes on 401 response codes.
+
+### 3. Active Codebase TODOs
+
+* **Authentication & Identity**:
+  - [ ] Add Google OAuth client integration to the login and registration pages ([LoginPage.jsx:L135](file:///home/harshit-jain/Desktop/chess/client/src/pages/LoginPage.jsx#L135), [RegisterPage.jsx:L130](file:///home/harshit-jain/Desktop/chess/client/src/pages/RegisterPage.jsx#L130)).
+* **Routing & Scale**:
+  - [ ] Implement Redis lookup for game-service instance pinning / sticky routing in the Gateway ([GameRoutingFilter.java:L24](file:///home/harshit-jain/Desktop/chess/server/gateway-service/src/main/java/com/example/chess/gateway/filter/GameRoutingFilter.java#L24)).
+* **Game Lifecycle & Resiliency**:
+  - [ ] Start White's clock running automatically on game creation in `GameManager` ([GameManager.java:L145](file:///home/harshit-jain/Desktop/chess/server/game-service/src/main/java/com/example/chess/game/service/GameManager.java#L145)).
+  - [ ] Refactor game-state mutation design pattern (Tell Don't Ask / Law of Demeter) ([GameManager.java:L188](file:///home/harshit-jain/Desktop/chess/server/game-service/src/main/java/com/example/chess/game/service/GameManager.java#L188)).
+  - [ ] Implement lazy crash recovery: on WebSocket connect, if the game state is not in active memory, read from Redis/Database ([GameManager.java:L231](file:///home/harshit-jain/Desktop/chess/server/game-service/src/main/java/com/example/chess/game/service/GameManager.java#L231)).
+  - [ ] Implement server-side auto-abort cleanup in `game-service` if a player fails to connect or move within the threshold ([QueuePage.jsx:L357](file:///home/harshit-jain/Desktop/chess/client/src/pages/QueuePage.jsx#L357)).
+
+
