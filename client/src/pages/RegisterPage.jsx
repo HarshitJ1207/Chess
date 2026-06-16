@@ -13,8 +13,15 @@ export default function RegisterPage() {
 
   function validate() {
     const e = {};
-    if (form.username.length < 3) e.username = 'At least 3 characters';
-    if (form.password.length < 8) e.password = 'At least 8 characters';
+    if (form.username.length < 3 || form.username.length > 20) {
+      e.username = 'Must be 3-20 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(form.username)) {
+      e.username = 'Letters, numbers, and underscores only';
+    }
+    
+    if (form.password.length < 8) {
+      e.password = 'At least 8 characters';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -25,6 +32,13 @@ export default function RegisterPage() {
       setAuth(data.token, form.username);
       navigate('/');
     },
+    onError: (error) => {
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message || error?.message || '';
+      if (status === 409 || msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('already exists')) {
+        setErrors((prev) => ({ ...prev, username: 'Username is already taken' }));
+      }
+    }
   });
 
   function handleSubmit(e) {
@@ -59,9 +73,9 @@ export default function RegisterPage() {
         <Typography variant="h6" fontWeight={750} mb={0.5}>
           Create account
         </Typography>
-        {mutation.isError && (
+        {mutation.isError && !errors.username && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>
-            {mutation.error?.message || 'Registration failed'}
+            {mutation.error?.response?.data?.message || mutation.error?.message || 'Registration failed'}
           </Alert>
         )}
 

@@ -61,7 +61,9 @@ export default function LoginPage() {
 
         {mutation.isError && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>
-            {mutation.error?.message || 'Login failed'}
+            {mutation.error?.response?.status === 401 || mutation.error?.response?.status === 403 
+              ? 'Invalid username or password' 
+              : (mutation.error?.response?.data?.message || mutation.error?.message || 'Login failed')}
           </Alert>
         )}
         {anonMutation.isError && (
