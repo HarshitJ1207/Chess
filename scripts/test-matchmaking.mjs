@@ -75,7 +75,7 @@ async function main() {
   const a1 = await register(P1);
   const a2 = await register(P2);
   const a3 = await register(P3);
-  log('auth', `p1 userId=${a1.userId}, p2 userId=${a2.userId}, p3 userId=${a3.userId}`);
+  log('auth', `p1 username=${a1.username}, p2 username=${a2.username}, p3 username=${a3.username}`);
 
   // Test 1: P1 queues (should be QUEUED, no opponent yet)
   log('test', '1. P1 queues 180+2 @ 1500 ELO');
@@ -119,10 +119,10 @@ async function main() {
   if (q2.color !== 'white' && q2.color !== 'black') {
     throw new Error(`expected color to be white or black, got ${q2.color}`);
   }
-  if (q2.opponentId !== a1.userId) {
-    throw new Error(`expected opponentId=${a1.userId}, got ${q2.opponentId}`);
+  if (q2.opponentUsername !== a1.username) {
+    throw new Error(`expected opponentUsername=${a1.username}, got ${q2.opponentUsername}`);
   }
-  log('pass', `P2 is MATCHED with P1 in game ${q2.gameId} (${q2.color} vs ${q2.opponentId.substring(0,8)})`);
+  log('pass', `P2 is MATCHED with P1 in game ${q2.gameId} (${q2.color} vs ${q2.opponentUsername})`);
 
   // Test 3: P3 queues, then leaves, then queues again (should be QUEUED the second time)
   log('test', '3a. P3 queues 180+2 @ 1500 ELO');

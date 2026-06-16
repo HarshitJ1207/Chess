@@ -147,11 +147,7 @@ public class GameManager {
         game.setLastMoveTimestamp(System.currentTimeMillis());
         games.put(gameId.toString(), game);
 
-        // STEP 5: Remove both players from matchmaking queue
-        redis.opsForZSet().remove("queue:" + timeControl, whiteUsername);
-        redis.opsForZSet().remove("queue:" + timeControl, blackUsername);
-
-        // STEP 6: Setup persistence and timeout
+        // STEP 5: Setup persistence and timeout
         persistMeta(game);
         timeoutScheduler.arm(gameId.toString(), game.getWhiteTimeRemaining(), () -> handleTimeout(gameId.toString()));
 

@@ -138,8 +138,16 @@ public class MatchmakingService {
             Player p2 = players.get(i + 1);
 
             if (Math.abs(p1.elo - p2.elo) <= eloRange) {
-                publishMatchRequest(p1.username, p2.username, timeControl);
-                i++; // Skip next player (already paired)
+                // Atomic removal: only proceed if BOTH players were still in the queue.
+                // This prevents pairing a player who just clicked 'Cancel'.
+                Long removed = redis.opsForZSet().remove(queueKey, p1.username, p2.username);
+                
+                if (removed != null && removed == 2) {
+                    publishMatchRequest(p1.username, p2.username, timeControl);
+                    i++; // Skip next player (already paired)
+                } else {
+                    log.debug("Failed to pair {} and {} (one or both already left queue)", p1.username, p2.username);
+                }
             }
         }
     }
