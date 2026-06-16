@@ -18,6 +18,14 @@ export default function LoginPage() {
     },
   });
 
+  const anonMutation = useMutation({
+    mutationFn: () => api.loginAnonymous(),
+    onSuccess: (data) => {
+      setAuth(data.token, data.username, true);
+      navigate('/');
+    },
+  });
+
   function handleSubmit(e) {
     e.preventDefault();
     mutation.mutate();
@@ -56,6 +64,11 @@ export default function LoginPage() {
             {mutation.error?.message || 'Login failed'}
           </Alert>
         )}
+        {anonMutation.isError && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>
+            {anonMutation.error?.message || 'Guest login failed'}
+          </Alert>
+        )}
 
         <Box sx={{ mt: 3.5 }}>
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -89,6 +102,30 @@ export default function LoginPage() {
               }}
             >
               Sign in
+            </Button>
+            
+            <Divider sx={{ my: 1, color: 'text.secondary', fontSize: '0.85rem' }}>OR</Divider>
+            
+            <Button
+              variant="outlined"
+              size="large"
+              loading={anonMutation.isPending}
+              onClick={() => anonMutation.mutate()}
+              sx={{
+                py: 1.4,
+                borderRadius: '10px',
+                fontWeight: 700,
+                textTransform: 'none',
+                fontSize: '0.95rem',
+                color: 'text.secondary',
+                borderColor: 'divider',
+                '&:hover': {
+                  borderColor: 'text.primary',
+                  bgcolor: 'rgba(255,255,255,0.05)'
+                }
+              }}
+            >
+              Play as Guest
             </Button>
           </Box>
         </Box>

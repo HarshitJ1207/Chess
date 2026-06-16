@@ -1,10 +1,10 @@
-import { AppBar, Toolbar, Typography, Button, Box, Avatar } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store';
 
 export default function NavBar() {
   const navigate = useNavigate();
-  const { username, clearAuth } = useAuthStore();
+  const { username, anonymous, clearAuth } = useAuthStore();
 
   function handleLogout() {
     clearAuth();
@@ -28,7 +28,14 @@ export default function NavBar() {
 
         {username ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
-            <Button onClick={() => navigate('/history')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>History</Button>
+            {anonymous && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600, mr: 1, display: { xs: 'none', sm: 'block' } }}>
+                Anonymous Guest
+              </Typography>
+            )}
+            {!anonymous && (
+              <Button onClick={() => navigate('/history')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>History</Button>
+            )}
             <Button onClick={() => navigate('/')} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>Home</Button>
             <Button
               onClick={handleLogout}
@@ -42,7 +49,7 @@ export default function NavBar() {
                 fontWeight: 600,
               }}
             >
-              Logout
+              {anonymous ? 'Exit Guest Mode' : 'Logout'}
             </Button>
           </Box>
         ) : (

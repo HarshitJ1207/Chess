@@ -48,12 +48,14 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                     .getPayload();
 
                 String username = claims.getSubject();
+                Boolean anonymous = claims.get("anonymous", Boolean.class);
 
                 logger.info("Token validated for user: {}", username);
 
                 ServerWebExchange mutated = exchange.mutate()
                     .request(r -> r
                         .header("X-Username", username)
+                        .header("X-Anonymous", String.valueOf(anonymous != null && anonymous))
                     )
                     .build();
 

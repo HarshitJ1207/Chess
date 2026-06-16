@@ -2,7 +2,6 @@ import { Box, Typography } from '@mui/material';
 
 export default function ClockDisplay({ ms, active, color }) {
   const isLow = ms !== null && ms < 30000;
-  const isCritical = ms !== null && ms < 10000;
 
   // Premium clock format: show tenths of a second if time is under 10s
   const formatTime = (timeMs) => {

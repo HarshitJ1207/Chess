@@ -140,7 +140,7 @@ public class GameManager {
 
         // STEP 4: Create game in RAM
         TimeControl tc = TimeControl.parse(timeControl);
-        GameState game = new GameState(gameId.toString(), whiteUsername, blackUsername, tc);
+        GameState game = new GameState(gameId.toString(), whiteUsername, blackUsername, tc, request.anonymous());
 
         // TODO: whites clock starts running the moment the game is created
         // we can follow a lichess like approach, the clock only starts running when both players make their first move.
@@ -347,9 +347,11 @@ public class GameManager {
         String gameId = game.getGameId();
         timeoutScheduler.cancel(gameId);
 
-        publisher.publishConcluded(new GameConcludedEvent(
-                gameId, game.getWhiteUsername(), game.getBlackUsername(),
-                status.resultTag(), termination, game.uciList()));
+        if (!game.isAnonymous()) {
+            publisher.publishConcluded(new GameConcludedEvent(
+                    gameId, game.getWhiteUsername(), game.getBlackUsername(),
+                    status.resultTag(), termination, game.uciList()));
+        }
 
         registry.broadcast(gameId, messages.end(game));
 

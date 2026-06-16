@@ -6,8 +6,9 @@ export const useAuthStore = create(
     (set) => ({
       token: null,
       username: null,
-      setAuth: (token, username) => set({ token, username }),
-      clearAuth: () => set({ token: null, username: null }),
+      anonymous: false,
+      setAuth: (token, username, anonymous = false) => set({ token, username, anonymous }),
+      clearAuth: () => set({ token: null, username: null, anonymous: false }),
     }),
     { name: 'chess-auth' },
   ),

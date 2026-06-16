@@ -15,6 +15,7 @@ import GameBoard from '../components/GameBoard';
 import PlayerCard from '../components/PlayerCard';
 import MoveList from '../components/MoveList';
 import { api } from '../api';
+import { formatUsername } from '../utils/username';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -69,7 +70,7 @@ function Chat({ messages, onSend, myUsername }) {
               <Box key={i} sx={{ mb: 0.75, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.25 }}>
                   <Typography variant="caption" fontWeight={700} sx={{ color: isMe ? 'primary.main' : 'secondary.main', fontSize: '0.7rem' }}>
-                    {m.user}
+                    {formatUsername(m.user)}
                   </Typography>
                 </Box>
                 <Box
@@ -122,7 +123,7 @@ function Chat({ messages, onSend, myUsername }) {
 export default function GamePage() {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { token, username } = useAuthStore();
+  const { token, username, anonymous } = useAuthStore();
 
   const [fen, setFen] = useState(START_FEN);
   const [myColor, setMyColor] = useState(null); // 'white' | 'black'
@@ -583,15 +584,17 @@ export default function GamePage() {
             >
               Play again
             </Button>
-            <Button
-              size="medium"
-              variant="outlined"
-              color="inherit"
-              onClick={() => navigate(`/replay/${gameId}`)}
-              sx={{ flex: 1, borderRadius: '8px', fontWeight: 700, textTransform: 'none', borderColor: 'rgba(255,255,255,0.1)' }}
-            >
-              Review Game
-            </Button>
+            {!anonymous && (
+              <Button
+                size="medium"
+                variant="outlined"
+                color="inherit"
+                onClick={() => navigate(`/replay/${gameId}`)}
+                sx={{ flex: 1, borderRadius: '8px', fontWeight: 700, textTransform: 'none', borderColor: 'rgba(255,255,255,0.1)' }}
+              >
+                Review Game
+              </Button>
+            )}
           </Box>
         )}
         

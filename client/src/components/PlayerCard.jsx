@@ -1,4 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material';
+import { formatUsername } from '../utils/username';
 
 export default function PlayerCard({
   username,
@@ -26,10 +27,10 @@ export default function PlayerCard({
     >
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
-          {username}
+          {formatUsername(username)}
         </Typography>
         <Typography variant="body2" color="text.secondary" fontWeight={500}>
-          Rating: {rating}
+          Rating: {username?.startsWith('anon-') ? '—' : rating}
         </Typography>
       </Box>
       {rightElement ? (

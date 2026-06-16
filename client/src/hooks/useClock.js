@@ -10,7 +10,7 @@ export function useClock() {
   const baselineRef = useRef(null); // { color, serverMs, localTs }
   const rafRef = useRef(null);
 
-  const tick = useCallback(() => {
+  const tick = useCallback(function tickFn() {
     if (!baselineRef.current) return;
     const { color, serverMs, localTs } = baselineRef.current;
     const elapsed = Date.now() - localTs;
@@ -19,7 +19,7 @@ export function useClock() {
     if (color === 'white') setWhiteMs(remaining);
     else setBlackMs(remaining);
 
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(tickFn);
   }, []);
 
   const sync = useCallback((clock, activeColor) => {

@@ -138,19 +138,6 @@ export default function QueuePage() {
   const [waitSecs, setWaitSecs] = useState(0);
   const [queued, setQueued] = useState(false);
 
-  useEffect(() => {
-    if (location.state?.autoPlay) {
-      window.history.replaceState({}, document.title);
-      mutation.mutate();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!queued) return;
-    const interval = setInterval(() => setWaitSecs((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [queued]);
-
   const mutation = useMutation({
     mutationFn: () => api.queue({ timeControl: tc, elo: 1500 }, token),
     onSuccess: (data) => {
@@ -162,6 +149,20 @@ export default function QueuePage() {
       }
     },
   });
+
+  useEffect(() => {
+    if (location.state?.autoPlay) {
+      window.history.replaceState({}, document.title);
+      mutation.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!queued) return;
+    const interval = setInterval(() => setWaitSecs((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [queued]);
 
   async function poll() {
     let attempts = 0;
@@ -211,6 +212,14 @@ export default function QueuePage() {
           </Typography>
         </Box>
       </Box>
+
+      {useAuthStore().anonymous && (
+        <Box sx={{ mb: 4, p: 2, borderRadius: '12px', bgcolor: 'rgba(255, 152, 0, 0.1)', border: '1px solid rgba(255, 152, 0, 0.3)' }}>
+          <Typography variant="body2" color="warning.main" fontWeight={600} textAlign="center">
+            Playing as Guest — games won't be saved to history or affect your rating.
+          </Typography>
+        </Box>
+      )}
 
       {queued ? (
         /* Focused Searching State (Centered Card) */

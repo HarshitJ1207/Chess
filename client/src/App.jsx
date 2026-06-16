@@ -23,6 +23,14 @@ function RequireAuth({ children }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+function RequireRegistered({ children }) {
+  const token = useAuthStore((s) => s.token);
+  const anonymous = useAuthStore((s) => s.anonymous);
+  if (!token) return <Navigate to="/login" replace />;
+  if (anonymous) return <Navigate to="/queue" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -37,8 +45,8 @@ export default function App() {
               <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
               <Route path="/queue" element={<RequireAuth><QueuePage /></RequireAuth>} />
               <Route path="/game/:gameId" element={<RequireAuth><GamePage /></RequireAuth>} />
-              <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
-              <Route path="/replay/:gameId" element={<RequireAuth><ReplayPage /></RequireAuth>} />
+              <Route path="/history" element={<RequireRegistered><HistoryPage /></RequireRegistered>} />
+              <Route path="/replay/:gameId" element={<RequireRegistered><ReplayPage /></RequireRegistered>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Box>

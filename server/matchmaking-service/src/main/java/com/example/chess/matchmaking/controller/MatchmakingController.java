@@ -17,14 +17,16 @@ public class MatchmakingController {
 
     @PostMapping("/queue")
     public ResponseEntity<QueueResponse> joinQueue(@Valid @RequestBody QueueRequest request,
-                                                   @RequestHeader("X-Username") String username) {
-        return ResponseEntity.ok(matchmakingService.joinQueue(username, request));
+                                                   @RequestHeader("X-Username") String username,
+                                                   @RequestHeader(value = "X-Anonymous", defaultValue = "false") String anonymous) {
+        return ResponseEntity.ok(matchmakingService.joinQueue(username, request, Boolean.parseBoolean(anonymous)));
     }
 
     @DeleteMapping("/dequeue")
     public ResponseEntity<Void> leaveQueue(@RequestParam String timeControl,
-                                           @RequestHeader("X-Username") String username) {
-        matchmakingService.leaveQueue(username, timeControl);
+                                           @RequestHeader("X-Username") String username,
+                                           @RequestHeader(value = "X-Anonymous", defaultValue = "false") String anonymous) {
+        matchmakingService.leaveQueue(username, timeControl, Boolean.parseBoolean(anonymous));
         return ResponseEntity.noContent().build();
     }
 }

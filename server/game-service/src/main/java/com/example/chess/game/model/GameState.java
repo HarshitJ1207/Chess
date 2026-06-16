@@ -22,6 +22,7 @@ public class GameState {
     private final String gameId;
     private final String whiteUsername;
     private final String blackUsername;
+    private final boolean anonymous;
     private final TimeControl timeControl;
 
     /** Live position; the source of truth for legality and end-of-game detection. */
@@ -42,10 +43,11 @@ public class GameState {
     /** username of whoever has an outstanding draw offer, or {@code null}. */
     @Setter private String pendingDrawOfferBy;
 
-    public GameState(String gameId, String whiteUsername, String blackUsername, TimeControl timeControl) {
+    public GameState(String gameId, String whiteUsername, String blackUsername, TimeControl timeControl, boolean anonymous) {
         this.gameId = gameId;
         this.whiteUsername = whiteUsername;
         this.blackUsername = blackUsername;
+        this.anonymous = anonymous;
         this.timeControl = timeControl;
         this.whiteTimeRemaining = timeControl.baseSeconds();
         this.blackTimeRemaining = timeControl.baseSeconds();

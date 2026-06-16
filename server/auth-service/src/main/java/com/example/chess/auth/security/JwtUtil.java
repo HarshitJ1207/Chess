@@ -31,6 +31,17 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateAnonymousToken(String anonymousId) {
+        return Jwts.builder()
+                .subject(anonymousId)
+                .claim("username", anonymousId)
+                .claim("anonymous", true)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .signWith(signingKey())
+                .compact();
+    }
+
     public Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey())

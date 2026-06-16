@@ -12,5 +12,6 @@ package com.example.chess.game.dto;
 public record MatchRequest(
         String player1Username,
         String player2Username,
-        String timeControl
+        String timeControl,
+        boolean anonymous
 ) {}

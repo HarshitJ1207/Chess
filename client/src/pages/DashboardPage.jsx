@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, Grid, Paper, Typography, Button, Divider,
+  Box, Grid, Paper, Typography, Button,
   Table, TableBody, TableCell, TableHead, TableRow,
   CircularProgress,
 } from '@mui/material';
@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { formatUsername } from '../utils/username';
 
 // Icons
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -34,27 +35,6 @@ const CHESS_QUOTES = [
   { text: "In chess, as in life, opportunity sometimes knocks only once.", author: "Al Horowitz" }
 ];
 
-function RatingCard({ username, token }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['rating', username],
-    queryFn: () => api.getRating(username, token),
-    enabled: !!username && !!token,
-  });
-
-  if (isLoading) return <CircularProgress size={20} />;
-  if (!data) return <Typography variant="h4" fontWeight={850}>1500</Typography>;
-
-  return (
-    <Box>
-      <Typography variant="h4" fontWeight={850} color="primary.main">
-        {Math.round(data.rating)}
-      </Typography>
-      <Typography variant="caption" color="text.secondary">
-        RD {data.ratingDeviation?.toFixed(0)} · Glicko-2
-      </Typography>
-    </Box>
-  );
-}
 
 function StatsCard({ username, token }) {
   const { data: ratingData } = useQuery({
@@ -199,7 +179,7 @@ function RecentGames({ username, token }) {
                 <RemoveCircleIcon sx={{ color: 'text.disabled', fontSize: 18 }} />
               )}
               <Box sx={{ textAlign: 'left' }}>
-                <Typography variant="body2" fontWeight={600}>vs {opp}</Typography>
+                <Typography variant="body2" fontWeight={600}>vs {formatUsername(opp)}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : ''}
                 </Typography>
@@ -245,7 +225,7 @@ function Leaderboard({ token }) {
                  <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
               </TableCell>
               <TableCell sx={{ py: 1 }}>
-                <Typography variant="body2" fontWeight={500}>{entry.username}</Typography>
+                <Typography variant="body2" fontWeight={500}>{formatUsername(entry.username)}</Typography>
               </TableCell>
               <TableCell align="right" sx={{ py: 1 }}>
                 <Typography variant="body2" fontWeight={600}>{Math.round(entry.rating)}</Typography>
@@ -271,7 +251,7 @@ function Leaderboard({ token }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { username, token } = useAuthStore();
+  const { username, token, anonymous } = useAuthStore();
   const [quote] = useState(() => CHESS_QUOTES[Math.floor(Math.random() * CHESS_QUOTES.length)]);
 
   function startQueue(timeControl) {
@@ -293,7 +273,7 @@ export default function DashboardPage() {
         }}
       >
         <Typography variant="h4" fontWeight={900} mb={1} sx={{ letterSpacing: '-0.5px' }}>
-          Welcome back, <span style={{ color: '#81c784' }}>{username}</span>!
+          {anonymous ? 'Welcome!' : <>Welcome back, <span style={{ color: '#81c784' }}>{formatUsername(username)}</span>!</>}
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 650, lineHeight: 1.6 }}>
           Challenge chess players around the globe. Jump into a fast match, review your play history, or check your placement on the leaderboard below.
@@ -359,33 +339,35 @@ export default function DashboardPage() {
               </Button>
             </Paper>
 
-            {/* Bottom Row: Stats & Recent Games */}
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <StatsCard username={username} token={token} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Paper sx={{ p: 3, border: '1px solid #2a2825', borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={700} mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left' }}>
-                      <HistoryIcon color="primary" /> Recent Games
-                    </Typography>
-                    <Box sx={{ mt: 2.5 }}>
-                      <RecentGames username={username} token={token} />
+            {/* Bottom Row: Stats & Recent Games (Hidden for Guests) */}
+            {!anonymous && (
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <StatsCard username={username} token={token} />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Paper sx={{ p: 3, border: '1px solid #2a2825', borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700} mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left' }}>
+                        <HistoryIcon color="primary" /> Recent Games
+                      </Typography>
+                      <Box sx={{ mt: 2.5 }}>
+                        <RecentGames username={username} token={token} />
+                      </Box>
                     </Box>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    size="small"
-                    onClick={() => navigate('/history')}
-                    sx={{ mt: 2.5, py: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
-                  >
-                    View Full Match History
-                  </Button>
-                </Paper>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      size="small"
+                      onClick={() => navigate('/history')}
+                      sx={{ mt: 2.5, py: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
+                    >
+                      View Full Match History
+                    </Button>
+                  </Paper>
+                </Grid>
               </Grid>
-            </Grid>
+            )}
 
           </Box>
         </Grid>

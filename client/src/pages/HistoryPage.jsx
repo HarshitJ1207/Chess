@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import { formatUsername } from '../utils/username';
 
 function formatTermination(termination) {
   if (!termination) return '—';
@@ -138,12 +139,13 @@ export default function HistoryPage() {
             <TableBody>
               {data?.content?.map((game) => {
                 const opp = game.whiteUsername === username ? game.blackUsername : game.whiteUsername;
+
                 return (
                   <TableRow 
-                    key={game.gameId} 
+                    key={game.gameId}
                     hover
                     onClick={() => navigate(`/replay/${game.gameId}`)}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
                   >
                     <TableCell>
                       <Typography variant="body2">
@@ -152,7 +154,9 @@ export default function HistoryPage() {
                     </TableCell>
                     <TableCell>{resultChip(game.result, game.whiteUsername === username)}</TableCell>
                     <TableCell>
-                      <Typography variant="body2">{opp}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography variant="body2" fontWeight={600}>vs {formatUsername(opp)}</Typography>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                       <Typography variant="body2" color="text.secondary">{formatTermination(game.termination)}</Typography>

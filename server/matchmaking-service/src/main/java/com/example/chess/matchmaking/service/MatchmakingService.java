@@ -50,7 +50,7 @@ public class MatchmakingService {
      * If in game, returns match details.
      * Otherwise, adds player to queue and returns queued status.
      */
-    public QueueResponse joinQueue(String username, QueueRequest request) {
+    public QueueResponse joinQueue(String username, QueueRequest request, boolean anonymous) {
         // Check if player is already in an active game
         String playerGameJson = redis.opsForValue().get("player:" + username + ":game");
 
@@ -71,7 +71,8 @@ public class MatchmakingService {
         }
 
         // Not in active game, add to queue
-        String queueKey = QUEUE_KEY_PREFIX + request.timeControl();
+        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
+        String queueKey = queuePrefix + request.timeControl();
         redis.opsForZSet().add(queueKey, username, request.elo());
 
         return QueueResponse.queued();
@@ -82,7 +83,7 @@ public class MatchmakingService {
      *
      * Rejects if player is already in a game.
      */
-    public void leaveQueue(String username, String timeControl) {
+    public void leaveQueue(String username, String timeControl, boolean anonymous) {
         // Check if already in a game
         String playerGameJson = redis.opsForValue().get("player:" + username + ":game");
 
@@ -100,7 +101,8 @@ public class MatchmakingService {
         }
 
         // Remove from queue
-        redis.opsForZSet().remove(QUEUE_KEY_PREFIX + timeControl, username);
+        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
+        redis.opsForZSet().remove(queuePrefix + timeControl, username);
     }
 
     /**
@@ -112,12 +114,14 @@ public class MatchmakingService {
     @Scheduled(fixedDelay = 10000)
     public void matchPlayers() {
         for (String timeControl : TIME_CONTROLS) {
-            matchInQueue(timeControl);
+            matchInQueue(timeControl, false);
+            matchInQueue(timeControl, true);
         }
     }
 
-    private void matchInQueue(String timeControl) {
-        String queueKey = QUEUE_KEY_PREFIX + timeControl;
+    private void matchInQueue(String timeControl, boolean anonymous) {
+        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
+        String queueKey = queuePrefix + timeControl;
 
         // Load entire queue snapshot (isolated from concurrent changes)
         Set<ZSetOperations.TypedTuple<String>> queue =
@@ -142,7 +146,7 @@ public class MatchmakingService {
                 Long r2 = redis.opsForZSet().remove(queueKey, p2.username);
                 
                 if (r1 != null && r1 == 1 && r2 != null && r2 == 1) {
-                    publishMatchRequest(p1.username, p2.username, timeControl);
+                    publishMatchRequest(p1.username, p2.username, timeControl, anonymous);
                     i++; // Skip next player (already paired)
                 } else {
                     if (r1 != null && r1 == 1) {
@@ -157,12 +161,12 @@ public class MatchmakingService {
         }
     }
 
-    private void publishMatchRequest(String p1Username, String p2Username, String timeControl) {
+    private void publishMatchRequest(String p1Username, String p2Username, String timeControl, boolean anonymous) {
         // Create deterministic partition key (sorted player usernames)
         String partitionKey = createPartitionKey(p1Username, p2Username);
 
         // Publish match request (game-service will create gameId and assign colors)
-        MatchRequest request = new MatchRequest(p1Username, p2Username, timeControl);
+        MatchRequest request = new MatchRequest(p1Username, p2Username, timeControl, anonymous);
 
         kafkaTemplate.send(MATCH_REQUEST_TOPIC, partitionKey, request);
 

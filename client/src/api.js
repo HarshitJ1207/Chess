@@ -25,6 +25,7 @@ async function request(url, options = {}) {
 export const api = {
   register: (body) => request(`${BASE.auth}/register`, { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request(`${BASE.auth}/login`, { method: 'POST', body: JSON.stringify(body) }),
+  loginAnonymous: () => request(`${BASE.auth}/anonymous`, { method: 'POST' }),
 
   queue: (body, token) => request(`${BASE.matchmaking}/queue`, {
     method: 'POST',
