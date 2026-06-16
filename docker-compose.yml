@@ -66,6 +66,7 @@ services:
         SERVICE_NAME: gateway-service
     ports:
       - "8080:8080"
+    restart: on-failure
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -88,6 +89,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    restart: on-failure
     depends_on:
       gateway:
         condition: service_healthy
@@ -109,6 +111,7 @@ services:
         SERVICE_NAME: eureka-server
     ports:
       - "8761:8761"
+    restart: on-failure
     environment:
       JAVA_OPTS: -Xmx128m
     healthcheck:
@@ -123,6 +126,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: auth-service
+    restart: on-failure
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,6 +151,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: matchmaking-service
+    restart: on-failure
     depends_on:
       redis:
         condition: service_healthy
@@ -171,6 +176,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: game-service
+    restart: on-failure
     depends_on:
       redis:
         condition: service_healthy
@@ -196,6 +202,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: rating-service
+    restart: on-failure
     depends_on:
       postgres:
         condition: service_healthy
@@ -225,6 +232,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: history-service
+    restart: on-failure
     depends_on:
       postgres:
         condition: service_healthy
