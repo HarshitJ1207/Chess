@@ -1,10 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import {
-  Box, Paper, Typography, Button, Divider, TextField, IconButton,
-  Alert, Tooltip
+  Box, Paper, Typography, Button, Divider, TextField, IconButton, Alert
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FlagIcon from '@mui/icons-material/Flag';
@@ -13,6 +11,9 @@ import { useAuthStore } from '../store';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useClock } from '../hooks/useClock';
 import ClockDisplay from '../components/ClockDisplay';
+import GameBoard from '../components/GameBoard';
+import PlayerCard from '../components/PlayerCard';
+import MoveList from '../components/MoveList';
 import { api } from '../api';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -33,56 +34,6 @@ function formatTerminationReason(termination) {
   };
   const normalized = termination.toLowerCase().replace(/[-]/g, '_');
   return map[normalized] || (termination.charAt(0).toUpperCase() + termination.slice(1).replace(/_/g, ' '));
-}
-
-function MoveList({ moves }) {
-  const scrollRef = useRef(null);
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [moves]);
-
-  const pairs = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    pairs.push({ n: i / 2 + 1, w: moves[i], b: moves[i + 1] });
-  }
-
-  if (moves.length === 0) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', py: 4 }}>
-        <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.6 }}>No moves played yet</Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box ref={scrollRef} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {pairs.map((p, idx) => (
-        <Box
-          key={p.n}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            py: 0.5,
-            px: 1.5,
-            bgcolor: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
-            borderRadius: '4px',
-          }}
-        >
-          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {p.n}.
-          </Typography>
-          <Typography variant="body2" sx={{ minWidth: 80, fontWeight: 750, color: 'text.primary' }}>
-            {p.w}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-            {p.b ?? ''}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
 }
 
 function Chat({ messages, onSend, myUsername }) {
@@ -414,18 +365,6 @@ export default function GamePage() {
   const opponentMs = myColor === 'white' ? blackMs : whiteMs;
   const hasPendingDrawOffer = drawOffered || opponentDrawOffer;
 
-  const chessboardOptions = {
-    position: fen,
-    onSquareClick,
-    onPieceDrop,
-    boardOrientation: myColor ?? 'white',
-    squareStyles: optionSquares,
-    animationDurationInMs: 100,
-    arePiecesDraggable: isMyTurn && !gameOver,
-    customDarkSquareStyle: { backgroundColor: '#769656' },
-    customLightSquareStyle: { backgroundColor: '#eeeed2' },
-  };
-
   function handleResign() {
     send({ t: 'resign' });
   }
@@ -478,75 +417,35 @@ export default function GamePage() {
         }}
       >
         {/* Opponent Profile Card */}
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            p: 1.5,
-            bgcolor: 'rgba(30, 28, 25, 0.4)',
-            border: '1px solid',
-            borderColor: activeColor === opponentColor && !gameOver ? 'rgba(10, 113, 88, 0.4)' : '#2a2825',
-            borderRadius: '12px',
-            width: '100%',
-            boxShadow: activeColor === opponentColor && !gameOver ? '0 0 15px rgba(10, 113, 88, 0.1)' : 'none',
-            transition: 'all 0.3s ease',
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
-              {opponentUsername}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" fontWeight={500}>
-              Rating: {opponentRating !== null ? opponentRating : '1500'}
-            </Typography>
-          </Box>
-          <ClockDisplay ms={opponentMs} active={activeColor === opponentColor && !gameOver} color={opponentColor} />
-        </Paper>
+        <PlayerCard
+          username={opponentUsername}
+          rating={opponentRating ?? 1500}
+          active={activeColor === opponentColor && !gameOver}
+          rightElement={
+            <ClockDisplay ms={opponentMs} active={activeColor === opponentColor && !gameOver} color={opponentColor} />
+          }
+        />
 
-        {/* Chessboard Box Container */}
-        <Box 
-          sx={{ 
-            width: '100%', 
-            maxWidth: 560, 
-            aspectRatio: '1 / 1',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
-            border: '4px solid #1e1c19',
-          }}
-        >
-          <Chessboard options={chessboardOptions} />
-        </Box>
+        {/* Chessboard container */}
+        <GameBoard
+          position={fen}
+          boardOrientation={myColor ?? 'white'}
+          onSquareClick={onSquareClick}
+          onPieceDrop={onPieceDrop}
+          squareStyles={optionSquares}
+          arePiecesDraggable={isMyTurn && !gameOver}
+          animationDurationInMs={100}
+        />
 
         {/* My Profile Card */}
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            p: 1.5,
-            bgcolor: 'rgba(30, 28, 25, 0.4)',
-            border: '1px solid',
-            borderColor: activeColor === myColor && !gameOver ? 'rgba(10, 113, 88, 0.4)' : '#2a2825',
-            borderRadius: '12px',
-            width: '100%',
-            boxShadow: activeColor === myColor && !gameOver ? '0 0 15px rgba(10, 113, 88, 0.1)' : 'none',
-            transition: 'all 0.3s ease',
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
-              {username}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" fontWeight={500}>
-              Rating: {myRating !== null ? myRating : '1500'}
-            </Typography>
-          </Box>
-          <ClockDisplay ms={myMs} active={activeColor === myColor && !gameOver} color={myColor ?? '...'} />
-        </Paper>
+        <PlayerCard
+          username={username}
+          rating={myRating ?? 1500}
+          active={activeColor === myColor && !gameOver}
+          rightElement={
+            <ClockDisplay ms={myMs} active={activeColor === myColor && !gameOver} color={myColor ?? '...'} />
+          }
+        />
       </Box>
 
       {/* Sidebar Game Panel */}
@@ -627,7 +526,7 @@ export default function GamePage() {
         </Box>
 
         {/* Moves notation section */}
-        <Box sx={{ flex: 1, minHeight: { xs: 120, lg: 0 }, overflowY: 'auto', p: 1, bgcolor: 'rgba(0,0,0,0.15)' }}>
+        <Box sx={{ flex: 1, minHeight: { xs: 120, lg: 0 }, overflowY: 'auto', p: 1.5, bgcolor: 'rgba(0,0,0,0.15)' }}>
           <MoveList moves={sanMoves} />
         </Box>
 
@@ -695,6 +594,18 @@ export default function GamePage() {
             </Button>
           </Box>
         )}
+        
+        {/* Back to Dashboard link */}
+        <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', bgcolor: 'background.paper', borderTop: '1px solid rgba(255,255,255,0.02)' }}>
+          <Button 
+            size="small" 
+            variant="text" 
+            onClick={() => navigate('/')} 
+            sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem', fontWeight: 500, '&:hover': { color: 'text.primary', bgcolor: 'transparent' } }}
+          >
+            Leave Match Table
+          </Button>
+        </Box>
       </Paper>
     </Box>
   );

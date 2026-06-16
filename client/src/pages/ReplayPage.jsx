@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import {
   Box, Paper, Typography, IconButton, Button, Divider, CircularProgress,
@@ -14,6 +13,9 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuthStore } from '../store';
+import GameBoard from '../components/GameBoard';
+import PlayerCard from '../components/PlayerCard';
+import MoveList from '../components/MoveList';
 
 function buildPositions(uciMoves) {
   const chess = new Chess();
@@ -30,82 +32,6 @@ function buildPositions(uciMoves) {
     }
   }
   return positions;
-}
-
-function MoveList({ moves, currentPly, onSelect }) {
-  const pairs = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    pairs.push({ n: i / 2 + 1, w: { san: moves[i], ply: i + 1 }, b: moves[i + 1] ? { san: moves[i + 1], ply: i + 2 } : null });
-  }
-
-  if (moves.length === 0) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', py: 4 }}>
-        <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.6 }}>No moves in this game</Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {pairs.map((p, idx) => (
-        <Box
-          key={p.n}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            py: 0.5,
-            px: 1.5,
-            bgcolor: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
-            borderRadius: '4px',
-          }}
-        >
-          <Typography variant="body2" color="text.secondary" sx={{ minWidth: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {p.n}.
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              minWidth: 80,
-              cursor: 'pointer',
-              fontWeight: currentPly === p.w.ply ? 800 : 600,
-              color: currentPly === p.w.ply ? '#26a69a' : 'text.primary',
-              textShadow: currentPly === p.w.ply ? '0 0 8px rgba(38,166,154,0.4)' : 'none',
-              bgcolor: currentPly === p.w.ply ? 'rgba(38,166,154,0.12)' : 'transparent',
-              px: 0.75,
-              py: 0.25,
-              borderRadius: '4px',
-              transition: 'all 0.15s ease',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: 'primary.light' },
-            }}
-            onClick={() => onSelect(p.w.ply)}
-          >
-            {p.w.san}
-          </Typography>
-          {p.b && (
-            <Typography
-              variant="body2"
-              sx={{
-                cursor: 'pointer',
-                fontWeight: currentPly === p.b.ply ? 800 : 500,
-                color: currentPly === p.b.ply ? '#26a69a' : 'text.secondary',
-                textShadow: currentPly === p.b.ply ? '0 0 8px rgba(38,166,154,0.4)' : 'none',
-                bgcolor: currentPly === p.b.ply ? 'rgba(38,166,154,0.12)' : 'transparent',
-                px: 0.75,
-                py: 0.25,
-                borderRadius: '4px',
-                transition: 'all 0.15s ease',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', color: 'primary.light' },
-              }}
-              onClick={() => onSelect(p.b.ply)}
-            >
-              {p.b.san}
-            </Typography>
-          )}
-        </Box>
-      ))}
-    </Box>
-  );
 }
 
 export default function ReplayPage() {
@@ -220,87 +146,31 @@ export default function ReplayPage() {
       >
         {/* Top Profile Card */}
         {game && (
-          <Paper
-            elevation={0}
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              p: 1.5,
-              bgcolor: 'rgba(30, 28, 25, 0.4)',
-              border: '1px solid #2a2825',
-              borderRadius: '12px',
-              width: '100%',
-            }}
-          >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
-                {boardOrientation === 'white' ? game.blackUsername : game.whiteUsername}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Rating: {boardOrientation === 'white' ? (blackRating ?? '1500') : (whiteRating ?? '1500')}
-              </Typography>
-            </Box>
-            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-              {boardOrientation === 'white' ? 'BLACK' : 'WHITE'}
-            </Typography>
-          </Paper>
+          <PlayerCard
+            username={boardOrientation === 'white' ? game.blackUsername : game.whiteUsername}
+            rating={boardOrientation === 'white' ? (blackRating ?? 1500) : (whiteRating ?? 1500)}
+            colorLabel={boardOrientation === 'white' ? 'BLACK' : 'WHITE'}
+          />
         )}
 
         {/* Board Container */}
-        <Box 
-          sx={{ 
-            width: '100%', 
-            maxWidth: 560, 
-            aspectRatio: '1 / 1',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
-            border: '4px solid #1e1c19',
-          }}
-        >
-          <Chessboard
-            options={{
-              position: currentFen,
-              allowDragging: false,
-              allowDrawingArrows: true,
-              arrows,
-              onArrowsChange: ({ arrows: a }) => setArrows(a),
-              animationDurationInMs: 150,
-              boardOrientation,
-              customDarkSquareStyle: { backgroundColor: '#769656' },
-              customLightSquareStyle: { backgroundColor: '#eeeed2' },
-            }}
-          />
-        </Box>
+        <GameBoard
+          position={currentFen}
+          boardOrientation={boardOrientation}
+          arePiecesDraggable={false}
+          allowDrawingArrows={true}
+          arrows={arrows}
+          onArrowsChange={setArrows}
+          animationDurationInMs={150}
+        />
 
         {/* Bottom Profile Card */}
         {game && (
-          <Paper
-            elevation={0}
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              p: 1.5,
-              bgcolor: 'rgba(30, 28, 25, 0.4)',
-              border: '1px solid #2a2825',
-              borderRadius: '12px',
-              width: '100%',
-            }}
-          >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body1" fontWeight={700} noWrap sx={{ color: 'text.primary' }}>
-                {boardOrientation === 'white' ? game.whiteUsername : game.blackUsername}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Rating: {boardOrientation === 'white' ? (whiteRating ?? '1500') : (blackRating ?? '1500')}
-              </Typography>
-            </Box>
-            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-              {boardOrientation === 'white' ? 'WHITE' : 'BLACK'}
-            </Typography>
-          </Paper>
+          <PlayerCard
+            username={boardOrientation === 'white' ? game.whiteUsername : game.blackUsername}
+            rating={boardOrientation === 'white' ? (whiteRating ?? 1500) : (blackRating ?? 1500)}
+            colorLabel={boardOrientation === 'white' ? 'WHITE' : 'BLACK'}
+          />
         )}
 
         {/* Nav controls */}
@@ -392,6 +262,17 @@ export default function ReplayPage() {
           </Button>
           <Button size="medium" variant="contained" color="primary" onClick={() => navigate('/queue')} sx={{ flex: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
             Play
+          </Button>
+        </Box>
+        
+        <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', bgcolor: 'background.paper', borderTop: '1px solid rgba(255,255,255,0.02)' }}>
+          <Button 
+            size="small" 
+            variant="text" 
+            onClick={() => navigate('/')} 
+            sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem', fontWeight: 500, '&:hover': { color: 'text.primary', bgcolor: 'transparent' } }}
+          >
+            Leave Match Table
           </Button>
         </Box>
       </Paper>

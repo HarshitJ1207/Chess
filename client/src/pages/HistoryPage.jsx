@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Paper, Typography, Table, TableBody, TableCell, TableHead, TableRow,
-  TablePagination, CircularProgress, Chip, Button,
+  TablePagination, CircularProgress, Chip,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -133,14 +133,18 @@ export default function HistoryPage() {
                 <TableCell sx={{ color: 'text.secondary' }}>Opponent</TableCell>
                 <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>Termination</TableCell>
                 <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>Moves</TableCell>
-                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
               {data?.content?.map((game) => {
                 const opp = game.whiteUsername === username ? game.blackUsername : game.whiteUsername;
                 return (
-                  <TableRow key={game.gameId} hover>
+                  <TableRow 
+                    key={game.gameId} 
+                    hover
+                    onClick={() => navigate(`/replay/${game.gameId}`)}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell>
                       <Typography variant="body2">
                         {game.playedAt ? new Date(game.playedAt).toLocaleDateString() : '—'}
@@ -155,11 +159,6 @@ export default function HistoryPage() {
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                       <Typography variant="body2">{game.moves?.length ?? '—'}</Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Button size="small" onClick={() => navigate(`/replay/${game.gameId}`)}>
-                        Review
-                      </Button>
                     </TableCell>
                   </TableRow>
                 );

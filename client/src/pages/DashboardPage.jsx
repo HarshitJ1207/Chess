@@ -173,6 +173,7 @@ function RecentGames({ username, token }) {
           <Paper
             key={game.gameId}
             elevation={0}
+            onClick={() => navigate(`/replay/${game.gameId}`)}
             sx={{
               p: 1.5,
               display: 'flex',
@@ -181,8 +182,12 @@ function RecentGames({ username, token }) {
               bgcolor: 'background.paper',
               border: '1px solid #2a2825',
               borderRadius: '10px',
-              transition: 'background-color 0.2s',
-              '&:hover': { bgcolor: 'action.hover' }
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                bgcolor: 'action.hover',
+                borderColor: 'primary.main',
+              }
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -200,14 +205,6 @@ function RecentGames({ username, token }) {
                 </Typography>
               </Box>
             </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => navigate(`/replay/${game.gameId}`)}
-              sx={{ borderRadius: '6px', textTransform: 'none', px: 1.5 }}
-            >
-              Review
-            </Button>
           </Paper>
         );
       })}
@@ -368,13 +365,24 @@ export default function DashboardPage() {
                 <StatsCard username={username} token={token} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Paper sx={{ p: 3, border: '1px solid #2a2825', borderRadius: '16px', height: '100%' }}>
-                  <Typography variant="subtitle1" fontWeight={700} mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left' }}>
-                    <HistoryIcon color="primary" /> Recent Games
-                  </Typography>
-                  <Box sx={{ mt: 2.5 }}>
-                    <RecentGames username={username} token={token} />
+                <Paper sx={{ p: 3, border: '1px solid #2a2825', borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={700} mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left' }}>
+                      <HistoryIcon color="primary" /> Recent Games
+                    </Typography>
+                    <Box sx={{ mt: 2.5 }}>
+                      <RecentGames username={username} token={token} />
+                    </Box>
                   </Box>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    size="small"
+                    onClick={() => navigate('/history')}
+                    sx={{ mt: 2.5, py: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
+                  >
+                    View Full Match History
+                  </Button>
                 </Paper>
               </Grid>
             </Grid>
