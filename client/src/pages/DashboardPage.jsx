@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import {
   Box, Grid, Paper, Typography, Button, Avatar, Divider,
-  Table, TableBody, TableCell, TableHead, TableRow, Collapse,
-  CircularProgress, Chip,
+  Table, TableBody, TableCell, TableHead, TableRow,
+  CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -59,7 +59,7 @@ function Leaderboard({ token }) {
         </TableHead>
         <TableBody>
           {rows.map((entry, i) => (
-            <TableRow key={entry.playerId} sx={{ '&:last-child td': { border: 0 } }}>
+            <TableRow key={entry.username} sx={{ '&:last-child td': { border: 0 } }}>
               <TableCell>
                 {i === 0 ? <EmojiEventsIcon sx={{ color: '#f6c90e', fontSize: 16 }} /> :
                  i === 1 ? <EmojiEventsIcon sx={{ color: '#c0c0c0', fontSize: 16 }} /> :
@@ -67,7 +67,7 @@ function Leaderboard({ token }) {
                  <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
               </TableCell>
               <TableCell>
-                <Typography variant="body2">{entry.username ?? entry.playerId}</Typography>
+                <Typography variant="body2">{entry.username}</Typography>
               </TableCell>
               <TableCell align="right">
                 <Typography variant="body2" fontWeight={600}>{Math.round(entry.rating)}</Typography>
@@ -93,7 +93,7 @@ function Leaderboard({ token }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { userId, username, token } = useAuthStore();
+  const { username, token } = useAuthStore();
 
   return (
     <Box sx={{ maxWidth: 1100, mx: 'auto', p: { xs: 2, sm: 3 } }}>

@@ -47,14 +47,12 @@ public class JwtValidationFilter extends AbstractGatewayFilterFactory<JwtValidat
                     .parseSignedClaims(token)
                     .getPayload();
 
-                String userId = claims.getSubject();
-                String username = claims.get("username", String.class);
+                String username = claims.getSubject();
 
-                logger.info("Token validated for user: {} ({})", username, userId);
+                logger.info("Token validated for user: {}", username);
 
                 ServerWebExchange mutated = exchange.mutate()
                     .request(r -> r
-                        .header("X-User-ID", userId)
                         .header("X-Username", username)
                     )
                     .build();

@@ -33,7 +33,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String gameId = (String) session.getAttributes().get("gameId");
-        String playerId = (String) session.getAttributes().get("playerId");
+        String username = (String) session.getAttributes().get("username");
 
         GameState game = gameManager.get(gameId);
         if (game == null) {
@@ -41,21 +41,21 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
-        if (!game.isParticipant(playerId)) {
+        if (!game.isParticipant(username)) {
             registry.sendQuietly(session, messages.error("NOT_PARTICIPANT", "You are not in this game"));
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
 
         registry.add(gameId, session);
-        registry.sendQuietly(session, messages.init(game, game.colorOf(playerId), System.currentTimeMillis()));
-        log.debug("Player {} connected to game {}", playerId, gameId);
+        registry.sendQuietly(session, messages.init(game, game.colorOf(username), System.currentTimeMillis()));
+        log.debug("Player {} connected to game {}", username, gameId);
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         String gameId = (String) session.getAttributes().get("gameId");
-        String playerId = (String) session.getAttributes().get("playerId");
+        String username = (String) session.getAttributes().get("username");
 
         JsonNode root;
         try {
@@ -73,15 +73,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 int action = d.path("a").asInt(d.path("action").asInt(0));
                 // Handshake step 2: immediate ACK before validation.
                 registry.sendQuietly(session, messages.ack(action));
-                gameManager.applyMove(gameId, playerId, session, uci);
+                gameManager.applyMove(gameId, username, session, uci);
             }
             case "chat" -> {
                 String text = firstNonEmpty(d.path("msg").asText(""), d.path("text").asText(""));
-                gameManager.chat(gameId, playerId, text);
+                gameManager.chat(gameId, username, text);
             }
-            case "draw" -> gameManager.handleDraw(gameId, playerId, d.path("action").asText(""));
-            case "resign" -> gameManager.resign(gameId, playerId);
-            case "abort" -> gameManager.abort(gameId, playerId, session);
+            case "draw" -> gameManager.handleDraw(gameId, username, d.path("action").asText(""));
+            case "resign" -> gameManager.resign(gameId, username);
+            case "abort" -> gameManager.abort(gameId, username, session);
             default -> registry.sendQuietly(session, messages.error("UNKNOWN_TYPE", "Unknown message type: " + type));
         }
     }

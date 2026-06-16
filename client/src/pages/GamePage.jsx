@@ -17,8 +17,12 @@ import ClockDisplay from '../components/ClockDisplay';
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 function MoveList({ moves }) {
-  const endRef = useRef(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [moves]);
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [moves]);
 
   const pairs = [];
   for (let i = 0; i < moves.length; i += 2) {
@@ -26,7 +30,7 @@ function MoveList({ moves }) {
   }
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 1 }}>
+    <Box ref={scrollRef} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 1 }}>
       {pairs.map((p) => (
         <Box key={p.n} sx={{ display: 'flex', gap: 1, py: 0.25 }}>
           <Typography variant="body2" color="text.secondary" sx={{ minWidth: 28 }}>{p.n}.</Typography>
@@ -34,15 +38,18 @@ function MoveList({ moves }) {
           <Typography variant="body2" color="text.secondary">{p.b ?? ''}</Typography>
         </Box>
       ))}
-      <div ref={endRef} />
     </Box>
   );
 }
 
 function Chat({ messages, onSend }) {
   const [text, setText] = useState('');
-  const endRef = useRef(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages]);
 
   function handleSend() {
     const trimmed = text.trim();
@@ -55,14 +62,13 @@ function Chat({ messages, onSend }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 150, sm: 200 }, minHeight: 0 }}>
       <Typography variant="caption" color="text.secondary" sx={{ px: 1, py: 0.5 }}>Chat</Typography>
       <Divider />
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
+      <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
         {messages.map((m, i) => (
           <Box key={i} sx={{ mb: 0.5 }}>
             <Typography component="span" variant="caption" color="primary.main">{m.user}: </Typography>
             <Typography component="span" variant="caption" sx={{ wordBreak: 'break-word' }}>{m.text}</Typography>
           </Box>
         ))}
-        <div ref={endRef} />
       </Box>
       <Divider />
       <Box sx={{ display: 'flex', gap: 1, p: 1 }}>
@@ -84,7 +90,7 @@ function Chat({ messages, onSend }) {
 export default function GamePage() {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { token, userId, username } = useAuthStore();
+  const { token, username } = useAuthStore();
 
   const [fen, setFen] = useState(START_FEN);
   const [myColor, setMyColor] = useState(null); // 'white' | 'black'

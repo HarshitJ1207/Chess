@@ -30,7 +30,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        attributes.put("playerId", username);
+        attributes.put("username", username);
         attributes.put("gameId", gameId);
         return true;
     }

@@ -10,19 +10,19 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users", indexes = @Index(columnList = "username"))
+@Table(name = "users")
 @Getter @Setter @NoArgsConstructor
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-
-    @Column(unique = true, nullable = false, length = 32)
+    @Column(nullable = false, length = 32)
     private String username;
 
     @Column(unique = true, nullable = false)
     private String email;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Credentials credentials;
 
     @CreationTimestamp
     @Column(updatable = false)

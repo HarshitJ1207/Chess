@@ -36,14 +36,15 @@ public class AuthService {
         User user = new User();
         user.setUsername(request.username());
         user.setEmail(request.email());
-        userRepository.save(user);
 
         Credentials credentials = new Credentials();
         credentials.setUser(user);
         credentials.setPasswordHash(passwordEncoder.encode(request.password()));
-        credentialsRepository.save(credentials);
+        user.setCredentials(credentials);
 
-        return new AuthResponse(jwtUtil.generateToken(user), user.getId().toString(), user.getUsername());
+        userRepository.save(user);
+
+        return new AuthResponse(jwtUtil.generateToken(user), user.getUsername());
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -57,6 +58,6 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
-        return new AuthResponse(jwtUtil.generateToken(user), user.getId().toString(), user.getUsername());
+        return new AuthResponse(jwtUtil.generateToken(user), user.getUsername());
     }
 }

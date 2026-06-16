@@ -39,7 +39,7 @@ public class GameState {
     @Setter private int ply;
     @Setter private GameStatus status = GameStatus.ACTIVE;
     @Setter private String terminationReason;
-    /** playerId of whoever has an outstanding draw offer, or {@code null}. */
+    /** username of whoever has an outstanding draw offer, or {@code null}. */
     @Setter private String pendingDrawOfferBy;
 
     public GameState(String gameId, String whiteUsername, String blackUsername, TimeControl timeControl) {

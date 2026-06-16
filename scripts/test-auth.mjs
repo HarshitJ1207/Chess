@@ -58,8 +58,8 @@ async function main() {
   if (reg1.status !== 201) {
     throw new Error(`expected 201, got ${reg1.status} ${JSON.stringify(reg1.json)}`);
   }
-  const { token: token1, userId: userId1, username: username1 } = reg1.json;
-  if (!token1 || !userId1 || !username1) {
+  const { token: token1, username: username1 } = reg1.json;
+  if (!token1 || !username1) {
     throw new Error(`register response missing fields: ${JSON.stringify(reg1.json)}`);
   }
   log('pass', `P1 registered (${username1})`);
@@ -69,8 +69,8 @@ async function main() {
   if (reg2.status !== 201) {
     throw new Error(`expected 201, got ${reg2.status} ${JSON.stringify(reg2.json)}`);
   }
-  const { token: token2, userId: userId2, username: username2 } = reg2.json;
-  if (!token2 || !userId2 || !username2) {
+  const { token: token2, username: username2 } = reg2.json;
+  if (!token2 || !username2) {
     throw new Error(`register response missing fields: ${JSON.stringify(reg2.json)}`);
   }
   log('pass', `P2 registered (${username2})`);
@@ -81,18 +81,12 @@ async function main() {
   if (login1.status !== 200) {
     throw new Error(`expected 200, got ${login1.status} ${JSON.stringify(login1.json)}`);
   }
-  if (login1.json.userId !== userId1) {
-    throw new Error(`login returned different userId`);
-  }
   log('pass', `P1 login successful`);
 
   log('test', '3b. POST /api/auth/login (P2 correct creds)');
   const login2 = await jpost(`${AUTH}/api/auth/login`, { username: P2.username, password: P2.password });
   if (login2.status !== 200) {
     throw new Error(`expected 200, got ${login2.status} ${JSON.stringify(login2.json)}`);
-  }
-  if (login2.json.userId !== userId2) {
-    throw new Error(`login returned different userId`);
   }
   log('pass', `P2 login successful`);
 

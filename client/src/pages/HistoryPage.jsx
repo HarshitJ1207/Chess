@@ -56,7 +56,7 @@ export default function HistoryPage() {
             </TableHead>
             <TableBody>
               {data?.content?.map((game) => {
-                const opp = game.whiteUsername === username ? (game.blackUsername ?? game.blackPlayerId) : (game.whiteUsername ?? game.whitePlayerId);
+                const opp = game.whiteUsername === username ? game.blackUsername : game.whiteUsername;
                 return (
                   <TableRow key={game.gameId} hover>
                     <TableCell>

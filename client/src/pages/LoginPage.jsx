@@ -13,7 +13,7 @@ export default function LoginPage() {
   const mutation = useMutation({
     mutationFn: () => api.login(form),
     onSuccess: (data) => {
-      setAuth(data.token, data.userId, data.username ?? form.username);
+      setAuth(data.token, data.username ?? form.username);
       navigate('/');
     },
   });

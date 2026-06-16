@@ -88,7 +88,7 @@ public class GameMessages {
 
     public TextMessage chat(ChatMessage c) {
         Map<String, Object> d = new LinkedHashMap<>();
-        d.put("from", c.fromPlayerId());
+        d.put("from", c.fromUsername());
         d.put("color", c.fromColor());
         d.put("msg", c.text());
         Map<String, Object> e = env("chat");

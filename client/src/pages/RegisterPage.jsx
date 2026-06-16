@@ -22,7 +22,7 @@ export default function RegisterPage() {
   const mutation = useMutation({
     mutationFn: () => api.register(form),
     onSuccess: (data) => {
-      setAuth(data.token, data.userId, form.username);
+      setAuth(data.token, form.username);
       navigate('/');
     },
   });

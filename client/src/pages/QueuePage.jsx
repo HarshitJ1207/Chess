@@ -15,7 +15,7 @@ const TIME_CONTROLS = [
 
 export default function QueuePage() {
   const navigate = useNavigate();
-  const { token, userId } = useAuthStore();
+  const { token } = useAuthStore();
   const [tc, setTc] = useState('10+0');
   const [waitSecs, setWaitSecs] = useState(0);
   const [queued, setQueued] = useState(false);
@@ -38,7 +38,7 @@ export default function QueuePage() {
     },
   });
 
-  async function poll(initial) {
+  async function poll() {
     // After queuing, poll by re-queueing (idempotent on the server)
     // or navigate when we get MATCHED back from a future queue call
     let attempts = 0;

@@ -5,10 +5,9 @@ export const useAuthStore = create(
   persist(
     (set) => ({
       token: null,
-      userId: null,
       username: null,
-      setAuth: (token, userId, username) => set({ token, userId, username }),
-      clearAuth: () => set({ token: null, userId: null, username: null }),
+      setAuth: (token, username) => set({ token, username }),
+      clearAuth: () => set({ token: null, username: null }),
     }),
     { name: 'chess-auth' },
   ),

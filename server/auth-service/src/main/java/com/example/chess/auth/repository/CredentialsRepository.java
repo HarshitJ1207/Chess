@@ -5,8 +5,7 @@ import com.example.chess.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
-import java.util.UUID;
 
-public interface CredentialsRepository extends JpaRepository<Credentials, UUID> {
+public interface CredentialsRepository extends JpaRepository<Credentials, String> {
     Optional<Credentials> findByUser(User user);
 }
