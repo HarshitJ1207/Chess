@@ -6,7 +6,6 @@
 
 ## 2. Infrastructure & Routing
 - [ ] **Sticky Routing**: Implement Redis lookup for `game-service` instance pinning / sticky routing in the Gateway. If multiple game services exist, players of the same match must hit the same instance.
-- [ ] **OAuth Integration**: Add Google OAuth client integration to the login and registration pages.
 
 ## 3. Game Lifecycle Resiliency
 - [ ] **Auto-Start Clocks**: White's stats clock running automatically on game creation in `GameManager`. This should not be the case. A players clock should only start running after their first move. 
