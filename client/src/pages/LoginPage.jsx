@@ -11,9 +11,9 @@ export default function LoginPage() {
   const [form, setForm] = useState({ username: '', password: '' });
 
   const mutation = useMutation({
-    mutationFn: () => api.login(form),
-    onSuccess: (data) => {
-      setAuth(data.token, data.username ?? form.username);
+    mutationFn: (credentials) => api.login(credentials),
+    onSuccess: (data, variables) => {
+      setAuth(data.token, data.username ?? variables.username);
       navigate('/');
     },
   });
@@ -28,7 +28,10 @@ export default function LoginPage() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    mutation.mutate();
+    mutation.mutate({
+      username: form.username.trim(),
+      password: form.password
+    });
   }
 
   return (
@@ -56,7 +59,7 @@ export default function LoginPage() {
         </Box>
 
         <Typography variant="h6" fontWeight={750} mb={0.5}>
-          Sign in
+          Log in
         </Typography>
 
         {mutation.isError && (
@@ -77,7 +80,7 @@ export default function LoginPage() {
             <TextField
               label="Username"
               value={form.username}
-              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.replace(/\s/g, '') }))}
               required
               autoFocus
               InputProps={{ sx: { borderRadius: '10px' } }}
@@ -86,7 +89,7 @@ export default function LoginPage() {
               label="Password"
               type="password"
               value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value.trim() }))}
               required
               InputProps={{ sx: { borderRadius: '10px' } }}
             />
@@ -103,7 +106,7 @@ export default function LoginPage() {
                 fontSize: '0.95rem'
               }}
             >
-              Sign in
+              Log in
             </Button>
             
             <Divider sx={{ my: 1, color: 'text.secondary', fontSize: '0.85rem' }}>OR</Divider>

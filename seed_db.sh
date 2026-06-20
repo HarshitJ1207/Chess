@@ -11,7 +11,7 @@ echo "BEGIN;" >> auth_inserts.sql
 echo "BEGIN;" >> rating_inserts.sql
 
 # Fixed password hash for 'password' (BCrypt)
-HASH="\$2a\$10\$wOqZqK7s21JqI8i48k.bS.F7Rk0l72B1u6oQ0fG6tO7R8X8U0p2t2"
+HASH="\$2a\$10\$nO5JjQmoqLFNC0na6ZfVsOAK0IMtd69oKkCdlPUDR6P5mdbSPaqnm"
 
 echo "$json" | jq -c '.users[]' | while read -r user; do
   raw_username=$(echo "$user" | jq -r '.username')

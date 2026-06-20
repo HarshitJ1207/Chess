@@ -428,15 +428,84 @@ export default function GamePage() {
         />
 
         {/* Chessboard container */}
-        <GameBoard
-          position={fen}
-          boardOrientation={myColor ?? 'white'}
-          onSquareClick={onSquareClick}
-          onPieceDrop={onPieceDrop}
-          squareStyles={optionSquares}
-          arePiecesDraggable={isMyTurn && !gameOver}
-          animationDurationInMs={100}
-        />
+        <Box sx={{ position: 'relative' }}>
+          <GameBoard
+            position={fen}
+            boardOrientation={myColor ?? 'white'}
+            onSquareClick={onSquareClick}
+            onPieceDrop={onPieceDrop}
+            squareStyles={optionSquares}
+            arePiecesDraggable={isMyTurn && !gameOver}
+            animationDurationInMs={100}
+          />
+          {!!gameOver && !gameOver.hideModal && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'rgba(0,0,0,0.5)',
+                zIndex: 10,
+                borderRadius: '4px',
+                backdropFilter: 'blur(3px)'
+              }}
+            >
+              <Paper
+                elevation={24}
+                sx={{
+                  bgcolor: 'background.paper',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)',
+                  minWidth: 280,
+                  p: 3,
+                  textAlign: 'center',
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: 'text.primary' }}>
+                  Game Over
+                </Typography>
+                <Typography variant="h5" fontWeight={800} color="primary.main" sx={{ textTransform: 'uppercase', letterSpacing: 1, mb: 0.5 }}>
+                  {gameOver.result === '1-0' ? 'White Wins' :
+                   gameOver.result === '0-1' ? 'Black Wins' : 'Draw'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ mb: 3 }}>
+                  {formatTerminationReason(gameOver.termination)}
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  <Button 
+                    variant="contained" 
+                    color="primary" 
+                    onClick={() => navigate('/queue')}
+                    sx={{ borderRadius: '8px', fontWeight: 700, textTransform: 'none', px: 3 }}
+                  >
+                    Play Again
+                  </Button>
+                  {!anonymous && (
+                    <Button 
+                      variant="outlined" 
+                      color="inherit" 
+                      onClick={() => navigate(`/replay/${gameId}`)}
+                      sx={{ borderRadius: '8px', fontWeight: 700, textTransform: 'none', borderColor: 'rgba(255,255,255,0.1)' }}
+                    >
+                      Review
+                    </Button>
+                  )}
+                </Box>
+                <Button 
+                  size="small" 
+                  variant="text" 
+                  onClick={() => setGameOver(prev => ({ ...prev, hideModal: true }))}
+                  sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem' }}
+                >
+                  Close & View Board
+                </Button>
+              </Paper>
+            </Box>
+          )}
+        </Box>
 
         {/* My Profile Card */}
         <PlayerCard
@@ -597,19 +666,9 @@ export default function GamePage() {
             )}
           </Box>
         )}
-        
-        {/* Back to Dashboard link */}
-        <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', bgcolor: 'background.paper', borderTop: '1px solid rgba(255,255,255,0.02)' }}>
-          <Button 
-            size="small" 
-            variant="text" 
-            onClick={() => navigate('/')} 
-            sx={{ color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem', fontWeight: 500, '&:hover': { color: 'text.primary', bgcolor: 'transparent' } }}
-          >
-            Leave Match Table
-          </Button>
-        </Box>
       </Paper>
+
+
     </Box>
   );
 }

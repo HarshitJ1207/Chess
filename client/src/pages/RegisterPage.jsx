@@ -11,15 +11,15 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ username: '', email: '', password: '' });
   const [errors, setErrors] = useState({});
 
-  function validate() {
+  function validate(data) {
     const e = {};
-    if (form.username.length < 3 || form.username.length > 20) {
+    if (data.username.length < 3 || data.username.length > 20) {
       e.username = 'Must be 3-20 characters';
-    } else if (!/^[a-zA-Z0-9_]+$/.test(form.username)) {
+    } else if (!/^[a-zA-Z0-9_]+$/.test(data.username)) {
       e.username = 'Letters, numbers, and underscores only';
     }
     
-    if (form.password.length < 8) {
+    if (data.password.length < 8) {
       e.password = 'At least 8 characters';
     }
     setErrors(e);
@@ -27,9 +27,9 @@ export default function RegisterPage() {
   }
 
   const mutation = useMutation({
-    mutationFn: () => api.register(form),
-    onSuccess: (data) => {
-      setAuth(data.token, form.username);
+    mutationFn: (userData) => api.register(userData),
+    onSuccess: (data, variables) => {
+      setAuth(data.token, variables.username);
       navigate('/');
     },
     onError: (error) => {
@@ -43,7 +43,12 @@ export default function RegisterPage() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (validate()) mutation.mutate();
+    const data = {
+      username: form.username.trim(),
+      email: form.email.trim(),
+      password: form.password
+    };
+    if (validate(data)) mutation.mutate(data);
   }
 
   return (
@@ -84,7 +89,7 @@ export default function RegisterPage() {
             <TextField
               label="Username"
               value={form.username}
-              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.replace(/\s/g, '') }))}
               error={!!errors.username}
               helperText={errors.username}
               required
@@ -95,7 +100,7 @@ export default function RegisterPage() {
               label="Email"
               type="email"
               value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value.replace(/\s/g, '') }))}
               required
               InputProps={{ sx: { borderRadius: '10px' } }}
             />
@@ -103,7 +108,7 @@ export default function RegisterPage() {
               label="Password"
               type="password"
               value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value.trim() }))}
               error={!!errors.password}
               helperText={errors.password || 'Minimum 8 characters'}
               required
@@ -131,7 +136,7 @@ export default function RegisterPage() {
 
         <Typography variant="body2" sx={{ mt: 4, color: 'text.secondary', textAlign: 'center' }}>
           Have an account?{' '}
-          <Link component={RouterLink} to="/login" sx={{ fontWeight: 600, textDecoration: 'none' }}>Sign in</Link>
+          <Link component={RouterLink} to="/login" sx={{ fontWeight: 600, textDecoration: 'none' }}>Log in</Link>
         </Typography>
       </Paper>
     </Box>
