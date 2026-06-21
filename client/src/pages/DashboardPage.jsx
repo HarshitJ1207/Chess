@@ -207,34 +207,62 @@ function Leaderboard({ token }) {
 
   return (
     <Box>
-      <Box sx={{ maxHeight: expanded ? 500 : 'none', overflowY: expanded ? 'auto' : 'visible', overflowX: 'hidden', pr: expanded ? 1 : 0 }}>
-        <Table size="small" stickyHeader={expanded}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ color: 'text.secondary', width: 40, bgcolor: 'background.paper' }}>#</TableCell>
-              <TableCell sx={{ color: 'text.secondary', bgcolor: 'background.paper' }}>Player</TableCell>
-              <TableCell sx={{ color: 'text.secondary', bgcolor: 'background.paper' }} align="right">Rating</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((entry, i) => (
-              <TableRow key={entry.username} sx={{ '&:last-child td': { border: 0 } }}>
-                <TableCell sx={{ py: 1 }}>
-                  {i === 0 ? <EmojiEventsIcon sx={{ color: '#f6c90e', fontSize: 16 }} /> :
-                   i === 1 ? <EmojiEventsIcon sx={{ color: '#c0c0c0', fontSize: 16 }} /> :
-                   i === 2 ? <EmojiEventsIcon sx={{ color: '#cd7f32', fontSize: 16 }} /> :
-                   <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
-                </TableCell>
-                <TableCell sx={{ py: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>{formatUsername(entry.username)}</Typography>
-                </TableCell>
-                <TableCell align="right" sx={{ py: 1 }}>
-                  <Typography variant="body2" fontWeight={600}>{Math.round(entry.rating)}</Typography>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      {/* Header */}
+      <Box sx={{ display: 'flex', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.1)', mb: 1 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', width: 36 }}>#</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', flexGrow: 1 }}>Player</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', width: 65, textAlign: 'right', paddingRight: 0.5 }}>Rating</Typography>
+      </Box>
+
+      {/* Rows */}
+      <Box
+        sx={{
+          maxHeight: expanded ? 400 : 'none',
+          overflowY: expanded ? 'auto' : 'visible',
+          scrollbarWidth: 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+          msOverflowStyle: 'none',
+        }}
+      >
+        {rows.map((entry, i) => (
+          <Box
+            key={entry.username}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              py: 1,
+              borderBottom: i === rows.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            {/* Rank */}
+            <Box sx={{ width: 36, display: 'flex', alignItems: 'center' }}>
+              {i === 0 ? <EmojiEventsIcon sx={{ color: '#f6c90e', fontSize: 16 }} /> :
+               i === 1 ? <EmojiEventsIcon sx={{ color: '#c0c0c0', fontSize: 16 }} /> :
+               i === 2 ? <EmojiEventsIcon sx={{ color: '#cd7f32', fontSize: 16 }} /> :
+               <Typography variant="body2" color="text.secondary">{i + 1}</Typography>}
+            </Box>
+
+            {/* Player Name */}
+            <Box sx={{ flexGrow: 1, minWidth: 0, mr: 2 }}>
+              <Typography
+                variant="body2"
+                fontWeight={500}
+                noWrap
+                sx={{ textOverflow: 'ellipsis', overflow: 'hidden' }}
+                title={formatUsername(entry.username)}
+              >
+                {formatUsername(entry.username)}
+              </Typography>
+            </Box>
+
+            {/* Rating */}
+            <Typography variant="body2" fontWeight={600} sx={{ width: 65, textAlign: 'right', paddingRight: 0.5 }}>
+              {Math.round(entry.rating)}
+            </Typography>
+          </Box>
+        ))}
       </Box>
 
       {data.length > 8 && (
