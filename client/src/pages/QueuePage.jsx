@@ -152,7 +152,7 @@ export default function QueuePage() {
         return;
       }
       try {
-        const r = await api.queue({ timeControl: tc, elo: 1500 }, token);
+        const r = await api.queue({ timeControl: tc }, token);
         if (r.status === 'MATCHED') {
           clearInterval(pollIntervalRef.current);
           navigate(`/game/${r.gameId}`, { state: { color: r.color } });
@@ -164,7 +164,7 @@ export default function QueuePage() {
   }, [tc, token, navigate]);
 
   const mutation = useMutation({
-    mutationFn: () => api.queue({ timeControl: tc, elo: 1500 }, token),
+    mutationFn: () => api.queue({ timeControl: tc }, token),
     onSuccess: (data) => {
       if (data.status === 'MATCHED') {
         navigate(`/game/${data.gameId}`, { state: { color: data.color } });

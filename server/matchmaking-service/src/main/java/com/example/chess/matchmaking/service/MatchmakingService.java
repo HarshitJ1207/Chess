@@ -1,8 +1,10 @@
 package com.example.chess.matchmaking.service;
 
+import com.example.chess.matchmaking.client.RatingClient;
 import com.example.chess.matchmaking.dto.MatchRequest;
 import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
+import com.example.chess.matchmaking.dto.RatingResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class MatchmakingService {
 
     private final StringRedisTemplate redis;
     private final KafkaTemplate<String, MatchRequest> kafkaTemplate;
+    private final RatingClient ratingClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${matchmaking.elo-range:200}")
@@ -70,10 +73,27 @@ public class MatchmakingService {
             }
         }
 
+        // Fetch user's rating securely on the backend if they are registered
+        int elo = 1500;
+        if (!anonymous) {
+            try {
+                RatingResponse response = ratingClient.getRating(username);
+                if (response != null) {
+                    elo = (int) Math.round(response.rating());
+                }
+            } catch (feign.FeignException.NotFound e) {
+                // Fresh user who hasn't played games yet, default to 1500
+                elo = 1500;
+            } catch (Exception e) {
+                log.warn("Failed to fetch rating for {}, falling back to 1500", username, e);
+                elo = 1500;
+            }
+        }
+
         // Not in active game, add to queue
         String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
         String queueKey = queuePrefix + request.timeControl();
-        redis.opsForZSet().add(queueKey, username, request.elo());
+        redis.opsForZSet().add(queueKey, username, elo);
 
         return QueueResponse.queued();
     }
