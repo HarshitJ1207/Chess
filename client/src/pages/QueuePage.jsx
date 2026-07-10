@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Grid, Paper, Typography, Button, CircularProgress, Divider
 } from '@mui/material';
@@ -137,6 +137,31 @@ export default function QueuePage() {
   const [tc, setTc] = useState(location.state?.timeControl || '10+0');
   const [waitSecs, setWaitSecs] = useState(0);
   const [queued, setQueued] = useState(false);
+  const pollIntervalRef = useRef(null);
+
+  const poll = useCallback(() => {
+    let attempts = 0;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 120) {
+        clearInterval(pollIntervalRef.current);
+        setQueued(false);
+        return;
+      }
+      try {
+        const r = await api.queue({ timeControl: tc, elo: 1500 }, token);
+        if (r.status === 'MATCHED') {
+          clearInterval(pollIntervalRef.current);
+          navigate(`/game/${r.gameId}`, { state: { color: r.color } });
+        }
+      } catch {
+        // keep polling
+      }
+    }, 2000);
+  }, [tc, token, navigate]);
 
   const mutation = useMutation({
     mutationFn: () => api.queue({ timeControl: tc, elo: 1500 }, token),
@@ -145,7 +170,7 @@ export default function QueuePage() {
         navigate(`/game/${data.gameId}`, { state: { color: data.color } });
       } else {
         setQueued(true);
-        poll(data);
+        poll();
       }
     },
   });
@@ -158,32 +183,48 @@ export default function QueuePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cleanup poll interval on base component unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!queued) return;
     const interval = setInterval(() => setWaitSecs((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [queued]);
 
-  async function poll() {
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) { clearInterval(interval); setQueued(false); return; } // 2 min timeout
-      try {
-        const r = await api.queue({ timeControl: tc, elo: 1500 }, token);
-        if (r.status === 'MATCHED') {
-          clearInterval(interval);
-          navigate(`/game/${r.gameId}`, { state: { color: r.color } });
-        }
-      } catch {
-        // keep polling
+    const handleBeforeUnload = () => {
+      // Send a keepalive fetch request to guarantee dequeue even if tab closes
+      fetch(`/api/matchmaking/dequeue?timeControl=${encodeURIComponent(tc)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        keepalive: true
+      }).catch(() => {});
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Clean up poll when user cancels, navigates away, or queue state changes
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
-    }, 2000);
-    window.__queueInterval = interval;
-  }
+      api.dequeue(tc, token).catch(() => {});
+    };
+  }, [queued, tc, token]);
 
   function handleCancel() {
-    clearInterval(window.__queueInterval);
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
     setQueued(false);
     setWaitSecs(0);
     api.dequeue(tc, token).catch(() => {});

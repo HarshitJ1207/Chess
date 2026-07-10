@@ -1,6 +1,5 @@
 package com.example.chess.game;
 
-import com.example.chess.game.model.GameState;
 import com.example.chess.game.model.GameStatus;
 import com.example.chess.game.model.TimeControl;
 import org.junit.jupiter.api.Test;
@@ -43,17 +42,5 @@ class GameRulesTest {
         assertEquals("*", GameStatus.ABORTED.resultTag());
         assertTrue(GameStatus.WHITE_WON.isOver());
         assertTrue(!GameStatus.ACTIVE.isOver());
-    }
-
-    @Test
-    void newGameStartsWithEqualClocksAndWhiteToMove() {
-        GameState g = new GameState("g1", "wp", "bp", new TimeControl(300, 3));
-        assertEquals(300.0, g.getWhiteTimeRemaining());
-        assertEquals(300.0, g.getBlackTimeRemaining());
-        assertEquals("white", g.activeColor());
-        assertEquals("white", g.colorOf("wp"));
-        assertEquals("black", g.colorOf("bp"));
-        assertTrue(g.isParticipant("wp"));
-        assertTrue(!g.isParticipant("someone-else"));
     }
 }

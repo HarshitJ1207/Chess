@@ -20,8 +20,7 @@
 **Solution:**
 - The backend is the absolute source of truth.
 - Timeouts are strictly enforced via Server-side schedulers (`ThreadPoolTaskScheduler`).
-- **Lag Compensation:** The server measures move-to-move latency and refunds lost network time (hard-capped at 400ms per move).
-- The client merely *renders* the clock using `requestAnimationFrame`, synchronizing against the backend baseline received via WebSocket broadcasts.
+- The client merely *renders* the clock using `requestAnimationFrame`, synchronizing against the backend baseline received via WebSocket broadcasts (e.g., hard-snapping if the drift exceeds 500ms).
 
 ## 4. Microservice Decoupling & Isolation
 **Challenge:** Services sharing a monolithic database usually end up tightly coupled via cross-table JOINs, degrading maintainability.
