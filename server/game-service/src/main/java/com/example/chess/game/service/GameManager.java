@@ -61,9 +61,13 @@ public class GameManager {
     }
 
     private String buildInstanceUri() {
-        // In production, use actual hostname/IP from Eureka
-        // For now, use localhost:port
-        return "http://localhost:" + serverPort;
+        try {
+            String ip = java.net.InetAddress.getLocalHost().getHostAddress();
+            return "ws://" + ip + ":" + serverPort;
+        } catch (Exception e) {
+            log.warn("Could not determine local IP, falling back to localhost", e);
+            return "ws://localhost:" + serverPort;
+        }
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────────

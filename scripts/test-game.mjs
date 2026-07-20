@@ -121,7 +121,7 @@ async function main() {
 
   const a1 = await register(P1);
   const a2 = await register(P2);
-  log('auth', 'p1 userId', a1.userId, '| p2 userId', a2.userId);
+  log('auth', 'p1 username', a1.username, '| p2 username', a2.username);
 
   const concludedBefore = await kafkaWatermark('game-concluded');
 
@@ -149,8 +149,8 @@ async function main() {
 
   // q2 is p2's view: q2.color is p2's color, opponentId is p1.
   const p2White = q2.color === 'white';
-  const white = p2White ? { tag: 'WHITE/p2', token: a2.token, userId: a2.userId } : { tag: 'WHITE/p1', token: a1.token, userId: a1.userId };
-  const black = p2White ? { tag: 'BLACK/p1', token: a1.token, userId: a1.userId } : { tag: 'BLACK/p2', token: a2.token, userId: a2.userId };
+  const white = p2White ? { tag: 'WHITE/p2', token: a2.token, username: a2.username } : { tag: 'WHITE/p1', token: a1.token, username: a1.username };
+  const black = p2White ? { tag: 'BLACK/p1', token: a1.token, username: a1.username } : { tag: 'BLACK/p2', token: a2.token, username: a2.username };
   log('mm', `game ${gameId} — white=${white.tag} black=${black.tag}`);
 
   // Give game-service a moment to consume MatchCreatedEvent and instantiate the game.
@@ -206,10 +206,10 @@ async function main() {
   // ── Downstream consumers: rating-service + history-service ──
   // Both consume game-concluded asynchronously, so poll with a short backoff.
   const whiteRating = await poll(
-    () => getJson(`${RATING}/api/ratings/${white.userId}`),
+    () => getJson(`${RATING}/api/ratings/${white.username}`),
     (r) => r && typeof r.rating === 'number');
   const blackRating = await poll(
-    () => getJson(`${RATING}/api/ratings/${black.userId}`),
+    () => getJson(`${RATING}/api/ratings/${black.username}`),
     (r) => r && typeof r.rating === 'number');
 
   if (!whiteRating || !blackRating) {
@@ -222,7 +222,7 @@ async function main() {
   }
 
   const history = await poll(
-    () => getJson(`${HISTORY}/api/history/player/${white.userId}?page=0&size=5`),
+    () => getJson(`${HISTORY}/api/history/player/${white.username}?page=0&size=5`),
     (h) => h && h.totalElements >= 1 && h.content?.length >= 1);
   if (!history) {
     throw new Error('history-service did not archive the game in time');
