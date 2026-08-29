@@ -1,15 +1,15 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import {
-  Box, Paper, Typography, Button, Divider, TextField, IconButton, Alert
+  Box, Paper, Typography, Button, Divider, TextField, IconButton, Alert, Snackbar
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import FlagIcon from '@mui/icons-material/Flag';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import { useAuthStore } from '../store';
 import { useGameSocket } from '../hooks/useGameSocket';
-import { useClock } from '../hooks/useClock';
+import { createClockStore } from '../hooks/useClock';
 import ClockDisplay from '../components/ClockDisplay';
 import GameBoard from '../components/GameBoard';
 import PlayerCard from '../components/PlayerCard';
@@ -37,7 +37,7 @@ function formatTerminationReason(termination) {
   return map[normalized] || (termination.charAt(0).toUpperCase() + termination.slice(1).replace(/_/g, ' '));
 }
 
-function Chat({ messages, onSend, myUsername }) {
+const Chat = memo(function Chat({ messages, onSend, myUsername }) {
   const [text, setText] = useState('');
   const scrollRef = useRef(null);
   useEffect(() => {
@@ -82,6 +82,8 @@ function Chat({ messages, onSend, myUsername }) {
                     px: 1.5,
                     py: 0.75,
                     maxWidth: '85%',
+                    opacity: m.pending ? 0.55 : 1,
+                    transition: 'opacity 0.2s',
                   }}
                 >
                   <Typography variant="body2" sx={{ wordBreak: 'break-word', fontSize: '0.8rem', color: 'text.primary' }}>
@@ -118,7 +120,7 @@ function Chat({ messages, onSend, myUsername }) {
       </Box>
     </Box>
   );
-}
+});
 
 export default function GamePage() {
   const { gameId } = useParams();
@@ -140,10 +142,16 @@ export default function GamePage() {
 
   const [myRating, setMyRating] = useState(null);
   const [opponentRating, setOpponentRating] = useState(null);
+  const [snackbar, setSnackbar] = useState(null); // { message, severity }
 
   const actionCounter = useRef(0);
+  // Optimistic actions awaiting server confirmation, armed with rollback data.
+  const pendingMoveRef = useRef(null); // { action, prevFen, prevSanMoves }
+  const pendingDrawRef = useRef(false); // my draw offer awaiting the server echo
   const chessRef = useRef(new Chess());
-  const { whiteMs, blackMs, sync } = useClock();
+  // Clock ticks live outside React state; ClockDisplay widgets subscribe directly.
+  const clock = useMemo(() => createClockStore(), []);
+  useEffect(() => () => clock.destroy(), [clock]);
 
   // Fetch Glicko ratings
   useEffect(() => {
@@ -162,103 +170,7 @@ export default function GamePage() {
     }
   }, [opponentUsername, token]);
 
-  function clearMoveSelection() {
-    setMoveFrom('');
-    setOptionSquares({});
-  }
-
-  function isMyPiece(square) {
-    const piece = chessRef.current.get(square);
-    return Boolean(piece && piece.color === (myColor === 'white' ? 'w' : 'b'));
-  }
-
-  const handleMessage = useCallback((msg) => {
-    switch (msg.t) {
-      case 'init': {
-        setWsStatus('connected');
-        setMyColor(msg.d.color);
-        const oppName = msg.d.color === 'white' ? (msg.d.blackUsername ?? 'Opponent') : (msg.d.whiteUsername ?? 'Opponent');
-        setOpponentUsername(oppName);
-        if (msg.d.fen) {
-          setFen(msg.d.fen);
-          chessRef.current.load(msg.d.fen);
-        }
-        setMoveFrom('');
-        setOptionSquares({});
-        setDrawOffered(false);
-        setOpponentDrawOffer(false);
-        if (msg.d.clock) {
-          sync(msg.d.clock, msg.d.turn ?? 'white');
-          setActiveColor(msg.d.turn ?? 'white');
-        }
-        if (msg.d.moves) setSanMoves(msg.d.moves.map(m => (typeof m === 'string' ? m : (m?.san ?? m?.uci ?? JSON.stringify(m)))));
-        break;
-      }
-      case 'move': {
-        const d = msg.d;
-        chessRef.current.load(d.fen);
-        setFen(d.fen);
-        setMoveFrom('');
-        setOptionSquares({});
-        setDrawOffered(false);
-        setOpponentDrawOffer(false);
-        const nextActive = d.ply % 2 === 0 ? 'white' : 'black';
-        setActiveColor(nextActive);
-        if (d.clock) sync(d.clock, nextActive);
-        if (d.san) {
-          const san = typeof d.san === 'string' ? d.san : (d.san?.san ?? d.san?.uci ?? JSON.stringify(d.san));
-          setSanMoves((prev) => {
-            if (prev.length >= d.ply) return prev;
-            return [...prev, san];
-          });
-        }
-        break;
-      }
-      case 'chat': {
-        if (msg.d.from !== username) {
-          setChatMessages((prev) => [...prev, { user: msg.d.from, text: msg.d.msg }]);
-        }
-        break;
-      }
-      case 'draw': {
-        if (msg.d.action === 'offer') {
-          const offeredByMe = msg.d.by === myColor;
-          setDrawOffered(offeredByMe);
-          setOpponentDrawOffer(!offeredByMe);
-        } else if (msg.d.action === 'declined' || msg.d.action === 'decline') {
-          setDrawOffered(false);
-          setOpponentDrawOffer(false);
-        }
-        break;
-      }
-      case 'end': {
-        setGameOver(msg.d);
-        setMoveFrom('');
-        setOptionSquares({});
-        setDrawOffered(false);
-        setOpponentDrawOffer(false);
-        sync(msg.d.clock ?? { white: 0, black: 0 }, null);
-        break;
-      }
-      case '_connecting': {
-        setWsStatus('connecting');
-        break;
-      }
-      case '_open': {
-        setWsStatus('connected');
-        break;
-      }
-      case '_error':
-      case '_close': {
-        setWsStatus('disconnected');
-        break;
-      }
-    }
-  }, [myColor, sync, username]);
-
-  const { send } = useGameSocket(gameId, token, handleMessage);
-
-  function getMoveOptions(square) {
+  const getMoveOptions = useCallback((square) => {
     const moves = chessRef.current.moves({ square, verbose: true });
     if (moves.length === 0) {
       setOptionSquares({});
@@ -280,9 +192,154 @@ export default function GamePage() {
     newSquares[square] = { backgroundColor: 'rgba(10, 113, 88, 0.6)' };
     setOptionSquares(newSquares);
     return true;
-  }
+  }, []);
 
-  function onSquareClick({ square }) {
+  const clearMoveSelection = useCallback(() => {
+    setMoveFrom('');
+    setOptionSquares({});
+  }, []);
+
+  const isMyPiece = useCallback((square) => {
+    const piece = chessRef.current.get(square);
+    return Boolean(piece && piece.color === (myColor === 'white' ? 'w' : 'b'));
+  }, [myColor]);
+
+  const rollbackPendingMove = useCallback(() => {
+    const pending = pendingMoveRef.current;
+    if (!pending) return;
+    pendingMoveRef.current = null;
+    chessRef.current.load(pending.prevFen);
+    setFen(pending.prevFen);
+    setSanMoves(pending.prevSanMoves);
+    clearMoveSelection();
+  }, [clearMoveSelection]);
+
+  const handleMessage = useCallback((msg) => {
+    switch (msg.t) {
+      case 'init': {
+        // Full server resync — discard any optimistic state still pending.
+        pendingMoveRef.current = null;
+        pendingDrawRef.current = false;
+        setWsStatus('connected');
+        setMyColor(msg.d.color);
+        const oppName = msg.d.color === 'white' ? (msg.d.blackUsername ?? 'Opponent') : (msg.d.whiteUsername ?? 'Opponent');
+        setOpponentUsername(oppName);
+        if (msg.d.fen) {
+          setFen(msg.d.fen);
+          chessRef.current.load(msg.d.fen);
+        }
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
+        if (msg.d.clock) {
+          clock.sync(msg.d.clock, msg.d.turn ?? 'white');
+          setActiveColor(msg.d.turn ?? 'white');
+        }
+        if (msg.d.moves) setSanMoves(msg.d.moves.map(m => (typeof m === 'string' ? m : (m?.san ?? m?.uci ?? JSON.stringify(m)))));
+        break;
+      }
+      case 'move': {
+        // Authoritative broadcast — our optimistic copy is superseded.
+        pendingMoveRef.current = null;
+        const d = msg.d;
+        chessRef.current.load(d.fen);
+        setFen(d.fen);
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
+        const nextActive = d.ply % 2 === 0 ? 'white' : 'black';
+        setActiveColor(nextActive);
+        if (d.clock) clock.sync(d.clock, nextActive);
+        if (d.san) {
+          const san = typeof d.san === 'string' ? d.san : (d.san?.san ?? d.san?.uci ?? JSON.stringify(d.san));
+          setSanMoves((prev) => {
+            if (prev.length >= d.ply) return prev;
+            return [...prev, san];
+          });
+        }
+        break;
+      }
+      case 'chat': {
+        if (msg.d.from === username) {
+          // Server echo = delivery confirmed; clear the pending marker on our copy.
+          setChatMessages((prev) => {
+            const idx = prev.findIndex(m => m.pending && m.text === msg.d.msg);
+            if (idx === -1) return prev; // duplicate delivery of an already-confirmed chat
+            const next = [...prev];
+            next[idx] = { ...next[idx], pending: false };
+            return next;
+          });
+        } else {
+          setChatMessages((prev) => [...prev, { user: msg.d.from, text: msg.d.msg }]);
+        }
+        break;
+      }
+      case 'draw': {
+        if (msg.d.action === 'offer') {
+          const offeredByMe = msg.d.by === myColor;
+          if (offeredByMe) {
+            // Server echo confirms our optimistic offer.
+            pendingDrawRef.current = false;
+          }
+          setDrawOffered(offeredByMe);
+          setOpponentDrawOffer(!offeredByMe);
+        } else if (msg.d.action === 'declined' || msg.d.action === 'decline') {
+          pendingDrawRef.current = false;
+          setDrawOffered(false);
+          setOpponentDrawOffer(false);
+        }
+        break;
+      }
+      case 'end': {
+        pendingMoveRef.current = null;
+        pendingDrawRef.current = false;
+        setGameOver(msg.d);
+        setMoveFrom('');
+        setOptionSquares({});
+        setDrawOffered(false);
+        setOpponentDrawOffer(false);
+        // Game over — chat delivery no longer matters; drop pending markers.
+        setChatMessages((prev) => prev.map(m => (m.pending ? { ...m, pending: false } : m)));
+        clock.sync(msg.d.clock ?? { white: 0, black: 0 }, null);
+        break;
+      }
+      case 'ack': {
+        // Pre-validation transport ack; the move resolves via the `move` broadcast
+        // (accepted) or an `error` frame (rejected + rollback).
+        break;
+      }
+      case 'error': {
+        const code = msg.d?.code ?? 'ERROR';
+        const detail = msg.d?.detail;
+        rollbackPendingMove();
+        if (pendingDrawRef.current) {
+          pendingDrawRef.current = false;
+          setDrawOffered(false);
+        }
+        setSnackbar({ message: detail || code, severity: 'error' });
+        break;
+      }
+      case '_connecting': {
+        setWsStatus('connecting');
+        break;
+      }
+      case '_open': {
+        setWsStatus('connected');
+        break;
+      }
+      case '_error':
+      case '_close': {
+        setWsStatus('disconnected');
+        break;
+      }
+    }
+  }, [myColor, clock, username, rollbackPendingMove]);
+
+  const { send } = useGameSocket(gameId, token, handleMessage);
+
+  const onSquareClick = useCallback(({ square }) => {
     if (!myColor || activeColor !== myColor) return;
     const chess = chessRef.current;
 
@@ -318,12 +375,24 @@ export default function GamePage() {
        (chess.get(moveFrom).color === 'b' && square[1] === '1'));
 
     try {
+      const prevFen = chess.fen();
       chess.move({ from: moveFrom, to: square, promotion: 'q' });
       setFen(chess.fen());
-      setSanMoves((prev) => [...prev, foundMove.san]);
 
       const uci = `${moveFrom}${square}${isPromotion ? 'q' : ''}`;
-      send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
+      const actionId = ++actionCounter.current;
+      const result = send({ t: 'move', d: { u: uci, a: actionId } });
+      if (result === 'dropped') {
+        // Socket is closed with no reconnect pending — the frame will never go out.
+        chess.undo();
+        setSnackbar({ message: 'Connection lost — move was not sent.', severity: 'error' });
+        clearMoveSelection();
+        return;
+      }
+      setSanMoves((prev) => {
+        pendingMoveRef.current = { action: actionId, prevFen, prevSanMoves: prev };
+        return [...prev, foundMove.san];
+      });
 
       clearMoveSelection();
     } catch {
@@ -335,9 +404,9 @@ export default function GamePage() {
         clearMoveSelection();
       }
     }
-  }
+  }, [myColor, activeColor, moveFrom, isMyPiece, getMoveOptions, clearMoveSelection, send]);
 
-  function onPieceDrop({ sourceSquare, targetSquare }) {
+  const onPieceDrop = useCallback(({ sourceSquare, targetSquare }) => {
     if (!targetSquare || !myColor || activeColor !== myColor) return false;
 
     const chess = chessRef.current;
@@ -346,49 +415,81 @@ export default function GamePage() {
        (chess.get(sourceSquare).color === 'b' && targetSquare[1] === '1'));
 
     try {
+      const prevFen = chess.fen();
       const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
       setFen(chess.fen());
-      setSanMoves((prev) => [...prev, move.san]);
 
       const uci = `${sourceSquare}${targetSquare}${isPromotion ? 'q' : ''}`;
-      send({ t: 'move', d: { u: uci, a: ++actionCounter.current } });
+      const actionId = ++actionCounter.current;
+      const result = send({ t: 'move', d: { u: uci, a: actionId } });
+      if (result === 'dropped') {
+        chess.undo();
+        setSnackbar({ message: 'Connection lost — move was not sent.', severity: 'error' });
+        clearMoveSelection();
+        return false;
+      }
+      setSanMoves((prev) => {
+        pendingMoveRef.current = { action: actionId, prevFen, prevSanMoves: prev };
+        return [...prev, move.san];
+      });
 
       clearMoveSelection();
       return true;
     } catch {
       return false;
     }
-  }
+  }, [myColor, activeColor, clearMoveSelection, send]);
 
   const isMyTurn = activeColor === myColor;
   const opponentColor = myColor === 'white' ? 'black' : 'white';
-  const myMs = myColor === 'white' ? whiteMs : blackMs;
-  const opponentMs = myColor === 'white' ? blackMs : whiteMs;
   const hasPendingDrawOffer = drawOffered || opponentDrawOffer;
 
-  function handleResign() {
-    send({ t: 'resign' });
-  }
+  const handleResign = useCallback(() => {
+    const result = send({ t: 'resign' });
+    if (result === 'dropped') {
+      setSnackbar({ message: 'Connection lost — could not resign. Try again once reconnected.', severity: 'error' });
+    }
+  }, [send]);
 
-  function handleDrawOffer() {
+  const handleDrawOffer = useCallback(() => {
+    if (drawOffered) return;
     setDrawOffered(true);
-    send({ t: 'draw', d: { action: 'offer' } });
-  }
+    pendingDrawRef.current = true;
+    const result = send({ t: 'draw', d: { action: 'offer' } });
+    if (result === 'dropped') {
+      pendingDrawRef.current = false;
+      setDrawOffered(false);
+      setSnackbar({ message: 'Connection lost — draw offer was not sent.', severity: 'error' });
+    }
+  }, [drawOffered, send]);
 
-  function handleDrawAccept() {
+  const handleDrawAccept = useCallback(() => {
     setOpponentDrawOffer(false);
-    send({ t: 'draw', d: { action: 'accept' } });
-  }
+    const result = send({ t: 'draw', d: { action: 'accept' } });
+    if (result === 'dropped') {
+      setOpponentDrawOffer(true);
+      setSnackbar({ message: 'Connection lost — could not accept the draw offer.', severity: 'error' });
+    }
+  }, [send]);
 
-  function handleDrawDecline() {
+  const handleDrawDecline = useCallback(() => {
     setOpponentDrawOffer(false);
-    send({ t: 'draw', d: { action: 'decline' } });
-  }
+    const result = send({ t: 'draw', d: { action: 'decline' } });
+    if (result === 'dropped') {
+      setOpponentDrawOffer(true);
+      setSnackbar({ message: 'Connection lost — could not decline the draw offer.', severity: 'error' });
+    }
+  }, [send]);
 
-  function handleChatSend(text) {
-    send({ t: 'chat', d: { text } });
-    setChatMessages((prev) => [...prev, { user: username, text }]);
-  }
+  const handleChatSend = useCallback((text) => {
+    const result = send({ t: 'chat', d: { text } });
+    if (result === 'dropped') {
+      setSnackbar({ message: 'Connection lost — message was not sent.', severity: 'error' });
+      return;
+    }
+    // Optimistic append; the server echo (same `from`) flips `pending` off.
+    setChatMessages((prev) => [...prev, { user: username, text, pending: true }]);
+  }, [send, username]);
 
   return (
     <Box
@@ -423,7 +524,7 @@ export default function GamePage() {
           rating={opponentRating ?? 1500}
           active={activeColor === opponentColor && !gameOver}
           rightElement={
-            <ClockDisplay ms={opponentMs} active={activeColor === opponentColor && !gameOver} color={opponentColor} />
+            <ClockDisplay clock={clock} color={opponentColor} active={activeColor === opponentColor && !gameOver} />
           }
         />
 
@@ -513,7 +614,7 @@ export default function GamePage() {
           rating={myRating ?? 1500}
           active={activeColor === myColor && !gameOver}
           rightElement={
-            <ClockDisplay ms={myMs} active={activeColor === myColor && !gameOver} color={myColor ?? '...'} />
+            <ClockDisplay clock={clock} color={myColor ?? 'white'} active={activeColor === myColor && !gameOver} />
           }
         />
       </Box>
@@ -668,6 +769,24 @@ export default function GamePage() {
         )}
       </Paper>
 
+      {/* Transient action feedback (failed sends, server rejections) */}
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {snackbar ? (
+          <Alert
+            onClose={() => setSnackbar(null)}
+            severity={snackbar.severity}
+            variant="filled"
+            sx={{ borderRadius: '8px', width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
 
     </Box>
   );

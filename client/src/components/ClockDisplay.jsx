@@ -1,6 +1,12 @@
 import { Box, Typography } from '@mui/material';
+import { useClockValue } from '../hooks/useClock';
 
-export default function ClockDisplay({ ms, active, color }) {
+/**
+ * Renders one player's clock. Subscribes directly to the clock store, so the
+ * per-frame ticking never re-renders anything above this component.
+ */
+export default function ClockDisplay({ clock, color, active }) {
+  const ms = useClockValue(clock, color);
   const isLow = ms !== null && ms < 30000;
 
   // Premium clock format: show tenths of a second if time is under 10s

@@ -1,58 +1,110 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
 const SNAP_THRESHOLD_MS = 500;
 const SMEAR_RATE = 0.05;
 
-export function useClock() {
-  const [whiteMs, setWhiteMs] = useState(null);
-  const [blackMs, setBlackMs] = useState(null);
-  const activeColorRef = useRef(null);
-  const baselineRef = useRef(null); // { color, serverMs, localTs }
-  const rafRef = useRef(null);
+/**
+ * External clock store. GamePage pushes event-driven server syncs into it, and each
+ * ClockDisplay subscribes to its own color via useSyncExternalStore. The 60fps
+ * requestAnimationFrame ticking happens here — outside React state — so clock ticks
+ * re-render only the clock widgets, never the whole GamePage tree.
+ */
+export function createClockStore() {
+  const values = { white: null, black: null };
+  const listeners = { white: new Set(), black: new Set() };
+  let baseline = null; // { color, serverMs, localTs }
+  let rafId = null;
 
-  const tick = useCallback(function tickFn() {
-    if (!baselineRef.current) return;
-    const { color, serverMs, localTs } = baselineRef.current;
-    const elapsed = Date.now() - localTs;
-    const remaining = Math.max(0, serverMs - elapsed);
+  function notify(color) {
+    for (const listener of listeners[color]) listener();
+  }
 
-    if (color === 'white') setWhiteMs(remaining);
-    else setBlackMs(remaining);
-
-    rafRef.current = requestAnimationFrame(tickFn);
-  }, []);
-
-  const sync = useCallback((clock, activeColor) => {
-    // clock: { white: seconds, black: seconds }
-    cancelAnimationFrame(rafRef.current);
-    activeColorRef.current = activeColor;
-
-    const whiteMsNew = Math.round(clock.white * 1000);
-    const blackMsNew = Math.round(clock.black * 1000);
-
-    setWhiteMs((prev) => {
-      if (prev === null) return whiteMsNew;
-      const drift = Math.abs(prev - whiteMsNew);
-      return drift > SNAP_THRESHOLD_MS ? whiteMsNew : prev + (whiteMsNew - prev) * SMEAR_RATE;
-    });
-    setBlackMs((prev) => {
-      if (prev === null) return blackMsNew;
-      const drift = Math.abs(prev - blackMsNew);
-      return drift > SNAP_THRESHOLD_MS ? blackMsNew : prev + (blackMsNew - prev) * SMEAR_RATE;
-    });
-
-    if (activeColor) {
-      const serverMs = activeColor === 'white' ? whiteMsNew : blackMsNew;
-      baselineRef.current = { color: activeColor, serverMs, localTs: Date.now() };
-      rafRef.current = requestAnimationFrame(tick);
-    } else {
-      baselineRef.current = null;
+  function tick() {
+    if (!baseline) {
+      rafId = null;
+      return;
     }
-  }, [tick]);
+    const { color, serverMs, localTs } = baseline;
+    const remaining = Math.max(0, serverMs - (Date.now() - localTs));
+    if (values[color] !== remaining) {
+      values[color] = remaining;
+      notify(color);
+    }
+    rafId = requestAnimationFrame(tick);
+  }
 
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+  function ensureTicking() {
+    if (baseline && rafId === null) {
+      rafId = requestAnimationFrame(tick);
+    }
+  }
 
-  return { whiteMs, blackMs, sync };
+  /**
+   * Sync from a server clock snapshot: { white: seconds, black: seconds }.
+   * activeColor starts the rAF countdown for that side; null stops it (game over).
+   */
+  function sync(clock, activeColor) {
+    const whiteNew = Math.round(clock.white * 1000);
+    const blackNew = Math.round(clock.black * 1000);
+
+    const smooth = (current, next) => {
+      if (current === null || Math.abs(current - next) > SNAP_THRESHOLD_MS) return next;
+      return current + (next - current) * SMEAR_RATE;
+    };
+    values.white = smooth(values.white, whiteNew);
+    values.black = smooth(values.black, blackNew);
+
+    baseline = activeColor
+      ? { color: activeColor, serverMs: activeColor === 'white' ? whiteNew : blackNew, localTs: Date.now() }
+      : null;
+
+    notify('white');
+    notify('black');
+
+    if (baseline) {
+      ensureTicking();
+    } else if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  function subscribe(color) {
+    return (listener) => {
+      listeners[color].add(listener);
+      return () => listeners[color].delete(listener);
+    };
+  }
+
+  function get(color) {
+    return () => values[color];
+  }
+
+  function destroy() {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = null;
+    baseline = null;
+  }
+
+  return { sync, subscribe, get, destroy };
+}
+
+const noopSubscribe = () => () => {};
+const nullSnapshot = () => null;
+
+/** Subscribes a ClockDisplay to one color of the store. */
+export function useClockValue(clock, color) {
+  const isLiveColor = color === 'white' || color === 'black';
+  // Memoized so useSyncExternalStore doesn't resubscribe on every store tick.
+  const subscribe = useMemo(
+    () => (isLiveColor ? clock.subscribe(color) : noopSubscribe),
+    [clock, color, isLiveColor]
+  );
+  const getSnapshot = useMemo(
+    () => (isLiveColor ? clock.get(color) : nullSnapshot),
+    [clock, color, isLiveColor]
+  );
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
 
 export function formatClock(ms) {

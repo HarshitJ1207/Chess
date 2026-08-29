@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { Box } from '@mui/material';
 import { Chessboard } from 'react-chessboard';
 
-export default function GameBoard({
+function GameBoard({
   position,
   boardOrientation = 'white',
   onSquareClick,
@@ -45,3 +46,5 @@ export default function GameBoard({
     </Box>
   );
 }
+
+export default memo(GameBoard);

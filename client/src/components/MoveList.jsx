@@ -1,7 +1,7 @@
 import { Box, Typography } from '@mui/material';
-import { useRef, useEffect } from 'react';
+import { memo, useRef, useEffect } from 'react';
 
-export default function MoveList({ moves, currentPly, onSelect }) {
+function MoveList({ moves, currentPly, onSelect }) {
   const scrollRef = useRef(null);
   
   useEffect(() => {
@@ -98,3 +98,5 @@ export default function MoveList({ moves, currentPly, onSelect }) {
     </Box>
   );
 }
+
+export default memo(MoveList);

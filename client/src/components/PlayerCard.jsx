@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { Box, Paper, Typography } from '@mui/material';
 import { formatUsername } from '../utils/username';
 
-export default function PlayerCard({
+function PlayerCard({
   username,
   rating = 1500,
   active = false,
@@ -43,3 +44,5 @@ export default function PlayerCard({
     </Paper>
   );
 }
+
+export default memo(PlayerCard);
