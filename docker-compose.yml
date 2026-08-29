@@ -31,6 +31,9 @@ services:
 
   redpanda:
     image: redpandadata/redpanda:latest
+    # --overprovisioned is Redpanda's documented mode for co-tenanted container hosts:
+    # it licenses --reserve-memory=0M (no internal reservation) — do not "fix" this
+    # without removing --overprovisioned, or memory pressure doubles on this tuned host.
     command:
       - redpanda
       - start
@@ -176,6 +179,7 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      # Documented exception to the 160m default: holds all active game state in RAM.
       JAVA_OPTS: -Xmx256m
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q UP"]

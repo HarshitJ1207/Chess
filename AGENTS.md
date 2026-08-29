@@ -19,6 +19,6 @@ These are non-negotiable constraints. Apply them to every code change.
 2. **Event-driven write offloading.** The game loop (WebSocket + RAM) must never block on a PostgreSQL write. All heavy persistence (PGN saving, Elo calculation) is offloaded via `GameConcludedEvent` on Kafka.
 3. **RAM-first game state.** Active games live entirely in the Game Service's JVM memory (`ConcurrentHashMap`). Move validation happens in microseconds via `chesslib` — no DB round-trip.
 4. **Server-authoritative reality.** The backend is the absolute source of truth for move validation, clock sync, and lag compensation. The React client is an untrusted display layer.
-5. **Aggressive JVM tuning.** All Spring Boot containers run on a single host. Default `JAVA_OPTS=-Xmx160m` per container (some services may use `-Xmx128m`).
+5. **Aggressive JVM tuning.** All Spring Boot containers run on a single host. Default `JAVA_OPTS=-Xmx160m` per container (some services may use `-Xmx128m`; `game-service` uses `-Xmx256m` — a deliberate exception, since it holds all active game state in RAM).
 
 
