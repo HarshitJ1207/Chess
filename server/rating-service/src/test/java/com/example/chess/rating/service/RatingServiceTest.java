@@ -35,6 +35,7 @@ class RatingServiceTest {
     private RatingService service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         repository = mock(PlayerRatingRepository.class);
         redis = mock(StringRedisTemplate.class);

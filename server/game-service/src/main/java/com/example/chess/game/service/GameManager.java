@@ -46,18 +46,11 @@ public class GameManager {
     private final GameSessionRegistry registry;
     private final GameMessages messages;
 
-    @Value("${spring.application.name}")
-    private String instanceId;
-
     @Value("${server.port}")
     private int serverPort;
 
     public GameState get(String gameId) {
         return games.get(gameId);
-    }
-
-    private String getInstanceId() {
-        return instanceId;
     }
 
     private String buildInstanceUri() {

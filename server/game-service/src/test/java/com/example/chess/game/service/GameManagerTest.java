@@ -26,7 +26,6 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -60,6 +59,7 @@ class GameManagerTest {
     private final List<String> claimValues = new ArrayList<>();
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         redis = mock(StringRedisTemplate.class);
         valueOps = mock(ValueOperations.class);
@@ -275,7 +275,6 @@ class GameManagerTest {
     void timeoutConcludesTheFlaggedPlayer() throws Exception {
         String gameId = createGame(false);
         GameState g = manager.get(gameId);
-        String white = g.getWhiteUsername();
 
         // White's clock is nearly exhausted and wall-clock has long since passed.
         g.setWhiteTimeRemaining(1.0);

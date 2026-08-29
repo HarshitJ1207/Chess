@@ -5,7 +5,6 @@ import com.example.chess.matchmaking.dto.MatchRequest;
 import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
 import com.example.chess.matchmaking.dto.RatingResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,12 +14,10 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -40,6 +37,7 @@ class MatchmakingServiceTest {
     private MatchmakingService service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         redis = mock(StringRedisTemplate.class);
         valueOps = mock(ValueOperations.class);
