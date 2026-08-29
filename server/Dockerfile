@@ -1,6 +1,11 @@
 FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /build
 
+# Docker's default network has no IPv6 route, but DNS may return AAAA-only
+# records (e.g. for services.gradle.org). Java would pick the v6 address and
+# time out during wrapper/dependency downloads; force IPv4 for the build.
+ENV JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
+
 COPY gradle gradle
 COPY gradlew settings.gradle build.gradle gradle.properties ./
 
