@@ -5,6 +5,7 @@ import com.example.chess.game.model.TimeControl;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -15,23 +16,26 @@ class GameRulesTest {
 
     @Test
     void parsesBaseAndIncrementForm() {
-        TimeControl tc = TimeControl.parse("180+2");
+        // Matchmaking emits "baseMinutes+incSeconds" (see TimeControl javadoc and client).
+        TimeControl tc = TimeControl.parse("3+2");
         assertEquals(180, tc.baseSeconds());
         assertEquals(2, tc.incrementSeconds());
     }
 
     @Test
     void parsesNamedPresets() {
-        assertEquals(60, TimeControl.parse("bullet").baseSeconds());
         assertEquals(300, TimeControl.parse("blitz").baseSeconds());
-        assertEquals(600, TimeControl.parse("rapid").baseSeconds());
-        assertEquals(1800, TimeControl.parse("classical").baseSeconds());
+        assertEquals(60, TimeControl.parse("1+0").baseSeconds());
+        assertEquals(300, TimeControl.parse("5+0").baseSeconds());
+        assertEquals(600, TimeControl.parse("10+0").baseSeconds());
+        assertEquals(900, TimeControl.parse("15+10").baseSeconds());
     }
 
     @Test
     void unknownTimeControlFallsBackToBlitz() {
         assertEquals(300, TimeControl.parse("nonsense").baseSeconds());
         assertEquals(300, TimeControl.parse(null).baseSeconds());
+        assertEquals(300, TimeControl.parse("").baseSeconds());
     }
 
     @Test
@@ -41,6 +45,9 @@ class GameRulesTest {
         assertEquals("1/2-1/2", GameStatus.DRAW.resultTag());
         assertEquals("*", GameStatus.ABORTED.resultTag());
         assertTrue(GameStatus.WHITE_WON.isOver());
-        assertTrue(!GameStatus.ACTIVE.isOver());
+        assertTrue(GameStatus.BLACK_WON.isOver());
+        assertTrue(GameStatus.DRAW.isOver());
+        assertTrue(GameStatus.ABORTED.isOver());
+        assertFalse(GameStatus.ACTIVE.isOver());
     }
 }
