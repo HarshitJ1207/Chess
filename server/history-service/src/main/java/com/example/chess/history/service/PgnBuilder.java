@@ -31,7 +31,11 @@ public class PgnBuilder {
         for (String uci : ucis) {
             try {
                 Move move = new Move(uci.trim().toLowerCase(), board.getSideToMove());
-                board.doMove(move);
+                if (!board.doMove(move)) {
+                    // Invalid/illegal move — stop rather than replay on a corrupted board.
+                    log.warn("Stopping PGN reconstruction for game {} at bad move '{}'", event.gameId(), uci);
+                    break;
+                }
                 moveList.add(move);
             } catch (RuntimeException e) {
                 // Our own engine produced these moves, so this is unexpected; archive what we have.
