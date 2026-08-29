@@ -65,6 +65,11 @@ public class GameMessages {
         return frame(e);
     }
 
+    /** Liveness reply to the client keepalive ping ({@code {t:"ping"}}). */
+    public TextMessage pong() {
+        return frame(env("pong"));
+    }
+
     /** Immediate pre-validation acknowledgement that suppresses the client spinner. */
     public TextMessage ack(int actionCounter) {
         Map<String, Object> e = env("ack");

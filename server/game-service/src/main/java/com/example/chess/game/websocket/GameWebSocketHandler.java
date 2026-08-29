@@ -82,6 +82,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "draw" -> gameManager.handleDraw(gameId, username, d.path("action").asText(""));
             case "resign" -> gameManager.resign(gameId, username);
             case "abort" -> gameManager.abort(gameId, username, session);
+            // Client keepalive: reply so nginx read timeouts (300s) and liveness checks work.
+            case "ping" -> registry.sendQuietly(session, messages.pong());
             default -> registry.sendQuietly(session, messages.error("UNKNOWN_TYPE", "Unknown message type: " + type));
         }
     }

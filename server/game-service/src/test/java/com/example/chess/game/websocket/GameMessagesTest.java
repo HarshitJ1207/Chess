@@ -61,6 +61,12 @@ class GameMessagesTest {
     }
 
     @Test
+    void pongFrameHasNoPayload() throws Exception {
+        JsonNode root = parse(messages.pong());
+        assertEquals("pong", root.path("t").asText());
+    }
+
+    @Test
     void endFrameExposesWinnerForDecisiveResult() throws Exception {
         GameState g = state();
         g.setStatus(GameStatus.WHITE_WON);
