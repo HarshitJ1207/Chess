@@ -3,6 +3,5 @@
 !.env.example
 
 # Audit reports are point-in-time snapshots, not maintained docs. Never commit.
-# Generated against commit bb63194a42de7f5357f869528f44e39a3a86b52d (2026-08-29).
-# If HEAD has moved past this hash, treat the reports in docs/audits/ as STALE.
+# Each report carries its own staleness notice + generation commit hash in its header.
 docs/audits/
