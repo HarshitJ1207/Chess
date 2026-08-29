@@ -137,31 +137,52 @@ export default function QueuePage() {
   const [tc, setTc] = useState(location.state?.timeControl || '10+0');
   const [waitSecs, setWaitSecs] = useState(0);
   const [queued, setQueued] = useState(false);
-  const pollIntervalRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const pollStoppedRef = useRef(true);
 
+  // Recursive setTimeout: the next poll is scheduled only after the previous
+  // request settles, so slow responses can never pile up overlapping requests.
   const poll = useCallback(() => {
+    pollStoppedRef.current = false;
     let attempts = 0;
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
+    if (pollTimerRef.current) {
+      window.clearTimeout(pollTimerRef.current);
     }
-    pollIntervalRef.current = setInterval(async () => {
+
+    const tick = async () => {
+      if (pollStoppedRef.current) return;
       attempts++;
       if (attempts > 120) {
-        clearInterval(pollIntervalRef.current);
+        pollStoppedRef.current = true;
         setQueued(false);
         return;
       }
       try {
         const r = await api.queue({ timeControl: tc }, token);
+        if (pollStoppedRef.current) return;
         if (r.status === 'MATCHED') {
-          clearInterval(pollIntervalRef.current);
+          pollStoppedRef.current = true;
           navigate(`/game/${r.gameId}`, { state: { color: r.color } });
+          return;
         }
       } catch {
         // keep polling
       }
-    }, 2000);
+      if (!pollStoppedRef.current) {
+        pollTimerRef.current = window.setTimeout(tick, 2000);
+      }
+    };
+
+    pollTimerRef.current = window.setTimeout(tick, 2000);
   }, [tc, token, navigate]);
+
+  function stopPolling() {
+    pollStoppedRef.current = true;
+    if (pollTimerRef.current) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: () => api.queue({ timeControl: tc }, token),
@@ -183,12 +204,10 @@ export default function QueuePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cleanup poll interval on base component unmount
+  // Stop polling on base component unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      stopPolling();
     };
   }, []);
 
@@ -212,19 +231,15 @@ export default function QueuePage() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      
+
       // Clean up poll when user cancels, navigates away, or queue state changes
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      stopPolling();
       api.dequeue(tc, token).catch(() => {});
     };
   }, [queued, tc, token]);
 
   function handleCancel() {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-    }
+    stopPolling();
     setQueued(false);
     setWaitSecs(0);
     api.dequeue(tc, token).catch(() => {});

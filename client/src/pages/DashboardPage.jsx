@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   Box, Grid, Paper, Typography, Button,
-  Table, TableBody, TableCell, TableHead, TableRow,
   CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
