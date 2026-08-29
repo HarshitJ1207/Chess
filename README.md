@@ -14,7 +14,9 @@ A highly decoupled, distributed chess platform inspired by Lichess.
 - **Data Stores:** PostgreSQL 16, Redis 7
 - **Event Streaming:** Redpanda
 - **Service Discovery:** Netflix Eureka
-- **API Gateway:** Nginx
+- **API Gateway:** Spring Cloud Gateway (with sticky game routing via Redis)
+- **Edge Proxy:** Nginx (static frontend, TLS, reverse proxy)
+- **Inter-service Calls:** OpenFeign (e.g. matchmaking → rating)
 - **Frontend:** React 19 + Vite + MUI + react-chessboard
 
 ## Documentation

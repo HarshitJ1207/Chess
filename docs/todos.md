@@ -5,7 +5,7 @@
 - [ ] **Access & Refresh Tokens**: Implement short-lived Access Tokens stored in memory alongside long-lived Refresh Tokens (`HttpOnly` cookies) to prevent XSS and allow session revocation via Redis.
 
 ## 2. Infrastructure & Routing
-- [ ] **Sticky Routing**: Implement Redis lookup for `game-service` instance pinning / sticky routing in the Gateway. If multiple game services exist, players of the same match must hit the same instance.
+- [x] **Sticky Routing**: Implemented in the gateway (`GameRoutingFilter`). Players are pinned to the game-service instance owning their match via the `instanceUri` field of the Redis claim `player:{username}:game`; falls back to Eureka load balancing when the claim is absent.
 
 ## 3. Game Lifecycle Resiliency
 - [ ] **Auto-Start Clocks**: White's stats clock running automatically on game creation in `GameManager`. This should not be the case. A players clock should only start running after their first move. 

@@ -28,3 +28,10 @@
 - Strict **Database-per-service** model.
 - `auth_db`, `rating_db`, and `history_db` are isolated schemas.
 - Data required across boundaries is propagated via Kafka events (e.g., `rating-service` updating scores upon consuming `game-concluded` events).
+
+## 5. Sticky Routing for RAM-Resident Games
+**Challenge:** Active games live in one game-service instance's JVM memory. With multiple instances behind Eureka, a naive load balancer can route a player's WebSocket to an instance that does not hold their game.
+**Solution:**
+- On match creation, `game-service` writes an `instanceUri` into each player's Redis claim (`player:{username}:game`).
+- The gateway's `GameRoutingFilter` intercepts `/ws/game/**`, reads the claim, and rewrites the route URI to the owning instance *before* load balancing happens.
+- Missing/invalid claims degrade gracefully to normal Eureka load balancing, so a stale claim never hard-fails a connection.

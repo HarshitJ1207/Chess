@@ -21,6 +21,8 @@
 │              gateway-service (Spring Boot :8080)                │
 │      1. Gateway Entry Point for APIs and WebSockets             │
 │      2. Queries Eureka for Service Registry / Load Balancing    │
+│      3. Sticky Routing: pins /ws/game/** to the instance        │
+│         owning the game (GameRoutingFilter + Redis)             │
 └──────────┬──────────┬──────────┬──────────┬──────────┬──────────┘
            │          │          │          │          │
            ▼          ▼          ▼          ▼          ▼
@@ -52,9 +54,9 @@
 
 | Service | Port | Owns | Key Endpoints |
 |---|---|---|---|
-| **gateway-service** | 8080 | Routing & API Gateway | Routes `/api/**` and `/ws/**` to microservices |
+| **gateway-service** | 8080 | Routing & API Gateway | Routes `/api/**` and `/ws/**`; `GameRoutingFilter` sticky-pins game sockets to the owning game-service instance |
 | **auth-service** | 8081 | `auth_db` — users + credentials | `POST /api/auth/register` `POST /api/auth/login` `GET /api/auth/validate` |
-| **matchmaking-service** | 8082 | Redis Sorted Sets `queue:{tc}` | `POST /api/matchmaking/queue` `DELETE /api/matchmaking/queue/{tc}` |
+| **matchmaking-service** | 8082 | Redis Sorted Sets `queue:{tc}` | `POST /api/matchmaking/queue` `DELETE /api/matchmaking/queue/{tc}`; fetches ratings via OpenFeign (`RatingClient` → rating-service) |
 | **game-service** | 8083 | JVM `ConcurrentHashMap` + Redis move log | `WS /ws/game/{gameId}` |
 | **rating-service** | 8084 | `rating_db` — Glicko-2 vectors + Redis leaderboard | `GET /api/ratings/{userId}` `GET /api/ratings/leaderboard` |
 | **history-service** | 8085 | `history_db` — games + JSONB move telemetry | `GET /api/history/player/{id}` `GET /api/history/game/{id}` |
@@ -83,7 +85,7 @@ history_db (PostgreSQL)
 |---|---|---|---|---|---|
 | `queue:{tc}` | **ZSET**<br>score=rating<br>member=username | `matchmaking-service` | **Read:** `matchmaking-service` (pairing loop)<br>**Delete:** `matchmaking-service` (via `ZREM` on match / queue leave) | None | Active matchmaking queue for registered users, separated by time control (`tc`). |
 | `queue:anon:{tc}` | **ZSET**<br>score=elo<br>member=username | `matchmaking-service` | **Read:** `matchmaking-service` (pairing loop)<br>**Delete:** `matchmaking-service` (via `ZREM` on match / queue leave) | None | Active matchmaking queue for guest users, separated by time control (`tc`). Isolated from registered users. |
-| `player:{username}:game` | **STRING**<br>(JSON string) | `game-service` | **Write:** `game-service` (atomically via `SETNX` on match consume)<br>**Read:** `matchmaking-service` (via `POST /api/matchmaking/queue` to check active game or poll match status)<br>**Delete:** `game-service` (on game conclusion) | 24h | Active user session claim. Prevents double-queueing, connects players on reconnect, and acts as the match completion detection key for the client poll loop. |
+| `player:{username}:game` | **STRING**<br>(JSON string) | `game-service` | **Write:** `game-service` (atomically via `SETNX` on match consume)<br>**Read:** `matchmaking-service` (via `POST /api/matchmaking/queue` to check active game or poll match status)<br>**Read:** `gateway-service` (`GameRoutingFilter` reads `instanceUri` for sticky routing)<br>**Delete:** `game-service` (on game conclusion) | 24h | Active user session claim. Prevents double-queueing, connects players on reconnect, enables the gateway's sticky routing, and acts as the match completion detection key for the client poll loop. |
 | `game:{gameId}:meta` | **HASH** | `game-service` | **Write:** `game-service` (at game initialization)<br>**Read:** `game-service` (for lazy recovery)<br>**Delete:** `game-service` (sets 1-hour expiration on conclusion) | 1h post-game | Stores active game configuration details: `white`, `black`, `base`, `increment`. |
 | `game:{gameId}:moves` | **LIST**<br>(serialized JSON) | `game-service` | **Write:** `game-service` (appends via `RPUSH` on each valid move)<br>**Read:** `game-service` (replays list on lazy crash recovery)<br>**Delete:** `game-service` (sets 1-hour expiration on conclusion) | 1h post-game | Append-only move log. Used to reconstruct the authoritative game board inside JVM RAM after a service crash. |
 | `leaderboard` | **ZSET**<br>score=rating<br>member=username | `rating-service` | **Write:** `rating-service` (updates on consuming `game-concluded` Kafka event)<br>**Read:** `rating-service` (serves the leaderboard endpoint `/leaderboard`) | None | Persistent global leaderboard for registered players. |

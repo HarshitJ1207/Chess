@@ -20,5 +20,19 @@ These are non-negotiable constraints. Apply them to every code change.
 3. **RAM-first game state.** Active games live entirely in the Game Service's JVM memory (`ConcurrentHashMap`). Move validation happens in microseconds via `chesslib` — no DB round-trip.
 4. **Server-authoritative reality.** The backend is the absolute source of truth for move validation, clock sync, and lag compensation. The React client is an untrusted display layer.
 5. **Aggressive JVM tuning.** All Spring Boot containers run on a single host. Default `JAVA_OPTS=-Xmx160m` per container (some services may use `-Xmx128m`; `game-service` uses `-Xmx256m` — a deliberate exception, since it holds all active game state in RAM).
+6. **Sticky game routing.** Because active games live in one instance's RAM (rule 3), the gateway's `GameRoutingFilter` pins `/ws/game/**` requests to the owning instance via the `instanceUri` stored in the Redis claim `player:{username}:game`. Never route game traffic around this filter or drop `instanceUri` from the claim payload; if the claim is missing, the filter safely falls back to Eureka load balancing.
+7. **Server-confirmed client state.** The WebSocket server immediately `ack`s each move (pre-validation) and follows with either a `move` broadcast or an `error` frame. The React client applies moves optimistically but MUST roll back to the last server-confirmed state on `error`. Unknown client messages get an `error`; the server replies `pong` to `ping` keepalives (client pings every 30s).
+
+## Build & Verification
+
+Run these before committing. There is no `dockerBuild` Gradle task — do not pass `-x dockerBuild`.
+
+```bash
+# Server: compiles all microservices and runs every unit test
+cd server && ./gradlew build
+
+# Client: lint and production build
+cd client && npm run lint && npm run build
+```
 
 

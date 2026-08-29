@@ -86,8 +86,9 @@ The `gateway-service` intercepts matchmaking requests, extracts the JWT, verifie
 1. Browser requests to join the queue.
 2. The gateway validates the JWT signature, injects `X-Username` and `X-Anonymous`, and routes to `matchmaking-service`.
 3. The `matchmaking-service` checks Redis key `player:{username}:game` to verify the player isn't in an active game.
-4. If not in a game, it inserts the player into the appropriate Redis Sorted Set:
-   - **Registered Queue:** `queue:{timeControl}` (Score = Glicko-2 rating / ELO)
+4. For registered players, it fetches the caller's Glicko-2 rating **server-side** via OpenFeign (`RatingClient` → `rating-service`), falling back to 1500 if the call fails. Anonymous players are scored at the default ELO. The rating is never trusted from the client.
+5. If not in a game, it inserts the player into the appropriate Redis Sorted Set:
+   - **Registered Queue:** `queue:{timeControl}` (Score = Glicko-2 rating fetched via OpenFeign)
    - **Anonymous Queue:** `queue:anon:{timeControl}` (Score = default ELO)
 
 ```
@@ -185,7 +186,7 @@ Once matched, the client opens a WebSocket connection to start the game loop.
 Browsers do not support custom headers on native WebSockets, so the client sends the JWT inside the query parameter `?token=<JWT>`.
 
 1. **Nginx** handles SSL termination and forwards the WebSocket upgrade request to `gateway-service` on port `8080`.
-2. **Gateway** matches the `/ws/game/**` route. The `JwtValidationFilter` extracts the token from the query parameters, validates it, and injects `X-Username` and `X-Anonymous` headers before forwarding to the `game-service`.
+2. **Gateway** matches the `/ws/game/**` route. The `GameRoutingFilter` (ordered to run before the LB handler) looks up `player:{username}:game` in Redis and rewrites the route URI to the `instanceUri` of the game-service instance that holds the game in RAM — this is what keeps a match pinned to one instance. If the claim is missing or lacks `instanceUri`, it falls back to normal Eureka load balancing. The `JwtValidationFilter` then extracts the token from the query parameters, validates it, and injects `X-Username` and `X-Anonymous` headers before forwarding to the `game-service`.
 3. **Game Service** executes `JwtHandshakeInterceptor` to read the `X-Username` header and assigns attributes to the WebSocket session.
 4. It upgrades the connection to WebSocket (`101 Switching Protocols`) and triggers `GameWebSocketHandler`:
    - Validates that the game is loaded in JVM RAM.
@@ -224,6 +225,22 @@ Every move made in active play follows a low-latency 3-way handshake design to p
 3. **Game Service** validates the move using `chesslib`.
 4. If legal, it logs the move to the Redis List `game:{gameId}:moves` (used for backup/crash recovery).
 5. It calculates clocks (subtracting elapsed time and adding the time control increment) and broadcasts the authoritative state update to both players.
+
+### Full WebSocket message contract
+
+| Direction | Frame | Meaning |
+|---|---|---|
+| client → server | `{t:"move", d:{u, a}}` | Move attempt; `a` = client action counter |
+| server → client | `{t:"ack", d:<a>}` | Immediate pre-validation acknowledgement (suppresses optimistic spinner) |
+| server → client | `{t:"move", d:{uci, san, fen, ...}}` | Authoritative broadcast to both players |
+| server → client | `{t:"error", d:{code, detail}}` | Rejection (illegal move, not your turn, unknown message type...). The client rolls back to the last server-confirmed state |
+| client → server | `{t:"ping"}` / server → `{t:"pong"}` | Keepalive: client pings every 30s so idle sockets survive proxies |
+| bidirectional | `{t:"chat", d:{...}}` | Chat; the sender's message is confirmed via the server echo (not applied optimistically) |
+| client → server | `{t:"draw", d:{action}}` / server → `{t:"draw", ...}` | Offer/accept/decline; the offerer learns the outcome via the server echo |
+| client → server | `{t:"resign"}`, `{t:"abort"}` | End-game actions |
+| server → client | `{t:"init", d:{...}}` | Full state resync on (re)connect |
+
+While the socket is down, the client queues outbound frames (cap 50) and flushes them on reconnect; queued frames are processed as normal and can still be answered by `error` frames.
 
 ```
 White Browser               game-service                Redis              Black Browser
