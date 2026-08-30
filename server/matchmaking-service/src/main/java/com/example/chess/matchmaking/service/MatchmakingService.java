@@ -1,6 +1,7 @@
 package com.example.chess.matchmaking.service;
 
 import com.example.chess.matchmaking.client.RatingClient;
+import com.example.chess.matchmaking.config.KafkaTopicConfig;
 import com.example.chess.matchmaking.dto.MatchRequest;
 import com.example.chess.matchmaking.dto.QueueRequest;
 import com.example.chess.matchmaking.dto.QueueResponse;
@@ -28,7 +29,7 @@ import java.util.UUID;
 public class MatchmakingService {
 
     private static final String QUEUE_KEY_PREFIX = "queue:";
-    private static final String MATCH_REQUEST_TOPIC = "match-request";
+    private static final String MATCH_REQUEST_TOPIC = KafkaTopicConfig.MATCH_REQUEST_TOPIC;
 
     private static final List<String> TIME_CONTROLS = List.of(
         "1+0",

@@ -1,5 +1,6 @@
 package com.example.chess.game.service;
 
+import com.example.chess.game.config.KafkaTopicConfig;
 import com.example.chess.game.dto.GameConcludedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class GameEventPublisher {
 
-    private static final String GAME_CONCLUDED_TOPIC = "game-concluded";
+    private static final String GAME_CONCLUDED_TOPIC = KafkaTopicConfig.GAME_CONCLUDED_TOPIC;
 
     private final KafkaTemplate<String, GameConcludedEvent> kafkaTemplate;
 

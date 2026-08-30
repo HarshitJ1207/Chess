@@ -94,10 +94,12 @@ history_db (PostgreSQL)
 
 ## Kafka Topics
 
-| Topic | Producer | Consumers | Payload |
-|---|---|---|---|
-| `match-request` | matchmaking-service | game-service | `{ player1Username, player2Username, timeControl, anonymous }` |
-| `game-concluded` | game-service | rating-service, history-service | `{ gameId, whiteUsername, blackUsername, result, termination, moves[] }` *(skipped for anonymous games)* |
+| Topic | Producer | Consumers | Partitions | Payload |
+|---|---|---|---|---|
+| `match-request` | matchmaking-service | game-service | 6 *(declared in matchmaking's `KafkaTopicConfig`; headroom for up to 6 game-service instances — a partition is owned by exactly one consumer in the group, so 1 partition would starve all but one instance)* | `{ player1Username, player2Username, timeControl, anonymous }` |
+| `game-concluded` | game-service | rating-service, history-service | 3 *(declared in game-service's `KafkaTopicConfig`)* | `{ gameId, whiteUsername, blackUsername, result, termination, moves[] }` *(skipped for anonymous games)* |
+
+Topics are declared by the producing service via `NewTopic` beans (producer-owns-topic). The auto-configured `KafkaAdmin` creates them if missing and increases partitions on boot if the declared count rises; it never decreases. `match-request` records are keyed by the sorted player pair, so a given pair always lands on the same partition; `game-concluded` is keyed by `gameId`, preserving per-game event order on any partition count.
 
 ---
 
