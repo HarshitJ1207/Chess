@@ -9,6 +9,9 @@ ENV JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
 COPY gradle gradle
 COPY gradlew settings.gradle build.gradle gradle.properties ./
 
+# Pre-download and cache Gradle wrapper so parallel service builds reuse it from Docker cache
+RUN ./gradlew --version --no-daemon -q
+
 ARG SERVICE_NAME
 
 # All subproject build files must be present so Gradle can configure the
