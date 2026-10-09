@@ -16,3 +16,7 @@ services:
 
   eureka-server:
     ports: !reset []
+
+  game-service:
+    deploy:
+      replicas: 3
