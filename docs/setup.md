@@ -10,7 +10,7 @@ Navigate to the `server/` directory.
 ```bash
 cd server
 ./gradlew build         # Build all services
-./gradlew bootRun       # Run locally
+./gradlew :auth-service:bootRun # Run one service locally (repeat for other services)
 ./gradlew test          # Run all tests
 ```
 
@@ -30,6 +30,8 @@ npm run lint     # Run ESLint
 To run the entire full stack (infrastructure + microservices + frontend):
 
 ```bash
+cp .env.example .env
+# Set JWT_SECRET in .env (openssl rand -base64 48).
 # Build and start everything
 docker compose up --build
 
@@ -40,14 +42,34 @@ docker compose down
 docker compose up postgres redis redpanda
 ```
 
-### Production Build on constrained instances (e.g. AWS t3.small)
-Concurrent builds can cause Out-Of-Memory (OOM) failures. A script is provided to build sequentially:
+### Sequential builds on constrained hosts
+Concurrent builds can cause Out-Of-Memory (OOM) failures. Build one service at a time:
 
 ```bash
-chmod +x build_all.sh
-nohup ./build_all.sh > build.log 2>&1 &
-tail -f build.log
+for service in eureka-server auth-service matchmaking-service game-service rating-service history-service gateway nginx; do
+  docker compose build "$service" || exit 1
+done
+docker compose up -d
 ```
+
+### Private cloud host setup
+
+Host provisioning lives in a locally maintained, Git-ignored `setup.sh`. Upload it over SSH and run it from the repository checkout on the cloud VM:
+
+```bash
+scp setup.sh user@host:~/chess/setup.sh
+ssh user@host 'cd ~/chess && bash setup.sh'
+```
+
+The VM must already have a checkout of `main`. The private script configures the host, creates `.env` when missing, builds sequentially, and runs Docker Compose. Keep machine-specific configuration and TLS certificates on the host. With existing certificates under `/etc/letsencrypt`, set `DOMAIN` when invoking the private script to enable HTTPS.
+
+The tracked `docker-compose.prod.yml` removes published infrastructure and gateway ports; only Nginx remains exposed. Use it on the host with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+Any host-specific overrides belong in the ignored `docker-compose.local.yml` and `nginx/nginx.local.conf`. Include the same overrides for subsequent operations. Private setup files, environment files, keys, and local overrides are also excluded from the Docker build context.
 
 ## 3. Useful Operations & Debugging
 
@@ -79,9 +101,9 @@ docker compose exec redis redis-cli FLUSHALL
 ```
 
 Other common Redis commands:
-- `SMEMBERS active_games` (List active games)
-- `GET player:{id}:game` (Get game ID for a player)
-- `HGETALL game:{gameId}` (Get game metadata)
+- `GET player:{username}:game` (Get the player's active game claim)
+- `GET player:{username}:queue` (Get the player's queue membership claim)
+- `HGETALL game:{gameId}:meta` (Get game metadata)
 - `LRANGE game:{gameId}:moves 0 -1` (View move log for a game)
 - `ZRANGE leaderboard 0 -1 WITHSCORES` (Top players by rating)
 

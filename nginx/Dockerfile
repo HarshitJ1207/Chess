@@ -7,7 +7,7 @@ WORKDIR /app
 COPY client/package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy source and build
 COPY client/ ./

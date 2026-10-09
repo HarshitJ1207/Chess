@@ -80,6 +80,8 @@ Browser              Nginx           gateway-service      auth-service
 
 ## 2. Matchmaking Queue (Authenticated vs. Anonymous)
 
+> **KNOWN CRITICAL LIMITATION:** The current Redis/Kafka workflow is not atomic or failure-safe across multiple instances. Pair removal, dispatch, cancellation, and two-player game claims have race and recovery gaps. Treat the descriptions below as the current happy-path flow, not an enterprise delivery guarantee. See the [Matchmaking Enterprise Readiness Audit](audits/matchmaking_enterprise_readiness_audit.md) and its release-blocking remediation items in [Active TODOs](todos.md).
+
 The `gateway-service` intercepts matchmaking requests, extracts the JWT, verifies its signature locally using `JWT_SECRET`, and injects custom headers `X-Username` and `X-Anonymous` downstream.
 
 ### 2a. Joining the Queue (Non-blocking)
@@ -87,7 +89,8 @@ The `gateway-service` intercepts matchmaking requests, extracts the JWT, verifie
 2. The gateway validates the JWT signature, injects `X-Username` and `X-Anonymous`, and routes to `matchmaking-service`.
 3. The `matchmaking-service` checks Redis key `player:{username}:game` to verify the player isn't in an active game.
 4. For registered players, it fetches the caller's Glicko-2 rating **server-side** via OpenFeign (`RatingClient` → `rating-service`), falling back to 1500 if the call fails. Anonymous players are scored at the default ELO. The rating is never trusted from the client.
-5. If not in a game, it inserts the player into the appropriate Redis Sorted Set:
+5. It then reads the claim `player:{username}:queue` to enforce **single-queue membership**: a player already waiting in another time control is rejected with `409 Conflict` ("Already searching in the 3+0 queue. Cancel that search before joining another."). This is what stops a player from searching in `3+0` and `5+0` simultaneously from two tabs. A claim pointing at this same queue is treated as a status poll, not a re-join.
+6. If not in a game and not already searching elsewhere, it claims the queue via `SETNX player:{username}:queue` and inserts the player into the appropriate Redis Sorted Set:
    - **Registered Queue:** `queue:{timeControl}` (Score = Glicko-2 rating fetched via OpenFeign)
    - **Anonymous Queue:** `queue:anon:{timeControl}` (Score = default ELO)
 
@@ -123,7 +126,7 @@ A scheduler in the `matchmaking-service` runs every 10 seconds to scan the activ
 
 1. It pulls players from the queue ZSET (e.g. `queue:anon:3+0` or `queue:3+0`) sorted by score.
 2. Adjacent players within ELO range are paired.
-3. It atomically removes both players from the ZSET via `ZREM`.
+3. It currently removes the players with two independent `ZREM` calls. This is not an atomic pair reservation and is tracked as a critical remediation.
 4. It publishes a `MatchRequest` payload on the Redpanda/Kafka topic **`match-request`**.
 
 ```
@@ -133,7 +136,7 @@ matchmaking-service               Redis                                         
       │◄──[Player A, Player B]──────│                                             │
       │                             │                                             │
       │ (If paired within ELO range)│                                             │
-      │──ZREM queue:3+0, A, B ──────►│ (Remove atomically from Redis ZSET queue)     │
+      │──ZREM queue:3+0, A; then B ─►│ (Two independent removals; not atomic)        │
       │◄── 1 (each removed successfully)                                          │
       │                             │                                             │
       │──PRODUCE match-request ─────┼────────────────────────────────────────────►│
@@ -146,8 +149,9 @@ matchmaking-service               Redis                                         
 While waiting, the browser polls the `POST /api/matchmaking/queue` endpoint every 2 seconds.
 When a poll request is received, the `matchmaking-service` checks if the key `player:{username}:game` exists in Redis:
 - If the `game-service` has already consumed the match request and set up the game in RAM, it will have written `player:{username}:game` in Redis.
-- The `matchmaking-service` reads this JSON payload, detects the active game, and immediately returns a `MATCHED` response.
-- Otherwise, it returns `QUEUED`, and the client keeps polling.
+- The `matchmaking-service` reads this JSON payload, detects the active game, releases the `player:{username}:queue` claim, and immediately returns a `MATCHED` response.
+- If the player was paired but is not yet in a game, the ZSET entry is already gone, so it keeps returning `QUEUED` (without rejoining the ZSET) until the game key appears or the claim expires.
+- Otherwise it returns `QUEUED` and the client keeps polling. The claim's TTL is extended only while the player still has a ZSET entry, so a claim left behind by an aborted match request expires rather than blocking a new search.
 
 ```
 Player A (next poll) Nginx          gateway-service     matchmaking-service          Redis
@@ -176,7 +180,7 @@ Once matched, the client opens a WebSocket connection to start the game loop.
 ### 3a. Game Creation in JVM Memory
 1. The `game-service` consumes the `match-request` event from Redpanda.
 2. It assigns player colors (white vs. black) and generates a unique game ID.
-3. It performs an atomic claim on both players in Redis: `setIfAbsent("player:{username}:game", playerMetadata, 24h)`. If either player is already in a game, the match is aborted.
+3. It currently performs sequential `setIfAbsent("player:{username}:game", playerMetadata, 24h)` calls. Each command is atomic, but claiming the pair is not; if either player is already in a game, the match is aborted and the first claim is rolled back when possible.
 4. It creates the `GameState` in RAM (`ConcurrentHashMap`) and registers the game in the JVM memory of that specific `game-service` instance.
 5. It writes game metadata to the Redis Hash: `game:{gameId}:meta`.
 

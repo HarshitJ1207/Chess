@@ -9,7 +9,7 @@ A highly decoupled, distributed chess platform inspired by Lichess.
 - **Server-Authoritative Clock:** Strictly synchronized game clock with backend anti-cheat lag compensation.
 
 ## Tech Stack
-- **Services:** Java 21 + Spring Boot 4
+- **Services:** Java 21 + Spring Boot 3.5
 - **Validation:** `chesslib`
 - **Data Stores:** PostgreSQL 16, Redis 7
 - **Event Streaming:** Redpanda
@@ -25,10 +25,14 @@ A highly decoupled, distributed chess platform inspired by Lichess.
 - [Setup & Infrastructure](docs/setup.md)
 - [Technical Challenges](docs/challenges.md)
 - [Roadmap & TODOs](docs/todos.md)
+- [Matchmaking Enterprise Readiness Audit](docs/audits/matchmaking_enterprise_readiness_audit.md) - **critical remediation required before production scale-out**
+- [Sticky Routing Enterprise Readiness Audit](docs/audits/sticky_routing_enterprise_readiness_audit.md) - current implementation and production-readiness findings
 
 ## Quick Start
 To spin up the entire application stack:
 ```bash
+cp .env.example .env
+# Set JWT_SECRET in .env to a strong secret (openssl rand -base64 48).
 docker compose up --build
 ```
-*Note: For low-RAM environments (like t3.small instances), use the sequential `build_all.sh` script to avoid OOM issues.*
+See [Setup & Infrastructure](docs/setup.md) for sequential builds and the private host setup workflow.

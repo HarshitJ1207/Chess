@@ -10,36 +10,38 @@ spring:
       port: 6379
   cloud:
     gateway:
-      routes:
-        - id: auth-public
-          uri: lb://AUTH-SERVICE
-          predicates:
-            - Path=/api/auth/**
+      server:
+        webflux:
+          routes:
+            - id: auth-public
+              uri: lb://AUTH-SERVICE
+              predicates:
+                - Path=/api/auth/**
 
-        - id: matchmaking
-          uri: lb://MATCHMAKING-SERVICE
-          predicates:
-            - Path=/api/matchmaking/**
-          filters:
-            - JwtValidationFilter
+            - id: matchmaking
+              uri: lb://MATCHMAKING-SERVICE
+              predicates:
+                - Path=/api/matchmaking/**
+              filters:
+                - JwtValidationFilter
 
-        - id: game
-          uri: lb:ws://GAME-SERVICE
-          predicates:
-            - Path=/ws/game/**
-          filters:
-            - JwtValidationFilter
-            - GameRoutingFilter
+            - id: game
+              uri: lb:ws://GAME-SERVICE
+              predicates:
+                - Path=/ws/game/**
+              filters:
+                - JwtValidationFilter
+                - GameRoutingFilter
 
-        - id: ratings
-          uri: lb://RATING-SERVICE
-          predicates:
-            - Path=/api/ratings/**
+            - id: ratings
+              uri: lb://RATING-SERVICE
+              predicates:
+                - Path=/api/ratings/**
 
-        - id: history
-          uri: lb://HISTORY-SERVICE
-          predicates:
-            - Path=/api/history/**
+            - id: history
+              uri: lb://HISTORY-SERVICE
+              predicates:
+                - Path=/api/history/**
 
 jwt:
   secret: ${JWT_SECRET}

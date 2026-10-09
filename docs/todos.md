@@ -1,5 +1,19 @@
 # Active Codebase TODOs & Roadmap
 
+## 0. Critical: Matchmaking Distributed Correctness
+
+> **Deferred, but release-blocking before production scale-out.** See the full [Matchmaking Enterprise Readiness Audit](audits/matchmaking_enterprise_readiness_audit.md), rated **4/10 for enterprise readiness**.
+
+- [ ] Introduce versioned queue entries (`queueEntryId`) and stable, idempotent `matchId` values.
+- [ ] Replace multi-command join, cancel, pair reservation, and two-player game claims with atomic Redis Lua scripts or Redis Functions.
+- [ ] Add durable pending-match dispatch, Kafka delivery tracking, game-service accept/reject outcomes, retries, and reconciliation.
+- [ ] Add server-owned queue leases and cleanup for stale ZSET entries and orphan claims.
+- [ ] Replace full ZSET scans on every instance with sharded ownership and bounded candidate selection.
+- [ ] Separate queue status polling from joining so polls do not repeatedly call rating-service.
+- [ ] Add real Redis/Kafka multi-instance concurrency, failure-recovery, idempotency, fairness, and load tests.
+
+The current implementation is suitable for prototype development but must not be described as failure-safe or horizontally scalable until these items are completed and verified.
+
 ## 1. Security Enhancements
 - [ ] **Asymmetric JWT Signing**: Transition from HMAC-SHA256 (symmetric shared secret) to **RS256** or **ES256**. The Auth Service should hold the private key, while the API Gateway fetches public keys via a JWKS endpoint (`/api/auth/.well-known/jwks.json`).
 - [ ] **Access & Refresh Tokens**: Implement short-lived Access Tokens stored in memory alongside long-lived Refresh Tokens (`HttpOnly` cookies) to prevent XSS and allow session revocation via Redis.

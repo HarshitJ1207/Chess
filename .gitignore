@@ -2,6 +2,23 @@
 .env.*
 !.env.example
 
-# Audit reports are point-in-time snapshots, not maintained docs. Never commit.
-# Each report carries its own staleness notice + generation commit hash in its header.
-docs/audits/
+# Private host provisioning and machine-specific deployment files.
+/setup.sh
+/infra/deploy-oci.sh
+/OCI_REQUIREMENTS.md
+/docker-compose.local.yml
+/nginx/nginx.local.conf
+/seed_db.sh
+/sync_redis.sh
+/infra/db-seeder/
+/auth_inserts.sql
+/rating_inserts.sql
+*.pem
+*.key
+*.log
+
+# Generated audit reports are point-in-time snapshots, not maintained docs.
+# The matchmaking readiness audit is an explicit tracked release-gate document.
+docs/audits/*
+!docs/audits/matchmaking_enterprise_readiness_audit.md
+!docs/audits/sticky_routing_enterprise_readiness_audit.md

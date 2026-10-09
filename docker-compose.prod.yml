@@ -1,0 +1,18 @@
+# Production overrides for docker-compose.yml
+# Drops all internal ports from host binding so only Nginx is exposed.
+# HTTPS is enabled through a private host-specific override.
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  redpanda:
+    ports: !reset []
+
+  gateway:
+    ports: !reset []
+
+  eureka-server:
+    ports: !reset []

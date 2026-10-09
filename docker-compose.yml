@@ -5,8 +5,8 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: chess
-      POSTGRES_PASSWORD: chess
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-chess}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-chess}
       POSTGRES_DB: chess
     volumes:
       - ./infra/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
@@ -14,7 +14,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chess"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -59,6 +59,7 @@ services:
   # ── API Gateway ──────────────────────────────────────────────────────────────
 
   gateway:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -82,6 +83,7 @@ services:
   # ── Nginx (Static files + reverse proxy to gateway) ──────────────────────────
 
   nginx:
+    restart: on-failure
     build:
       context: .
       dockerfile: nginx/Dockerfile
@@ -101,6 +103,7 @@ services:
   # ── Platform services ────────────────────────────────────────────────────────
 
   eureka-server:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -117,6 +120,7 @@ services:
       retries: 15
 
   auth-service:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -129,8 +133,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
-      SPRING_DATASOURCE_USERNAME: chess
-      SPRING_DATASOURCE_PASSWORD: chess
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-chess}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-chess}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET}
       JAVA_OPTS: -Xmx160m
@@ -141,6 +145,7 @@ services:
       retries: 15
 
   matchmaking-service:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -165,6 +170,7 @@ services:
       retries: 15
 
   game-service:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -190,6 +196,7 @@ services:
       retries: 15
 
   rating-service:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -206,8 +213,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rating_db
-      SPRING_DATASOURCE_USERNAME: chess
-      SPRING_DATASOURCE_PASSWORD: chess
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-chess}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-chess}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
@@ -219,6 +226,7 @@ services:
       retries: 15
 
   history-service:
+    restart: on-failure
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -233,8 +241,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/history_db
-      SPRING_DATASOURCE_USERNAME: chess
-      SPRING_DATASOURCE_PASSWORD: chess
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-chess}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-chess}
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       JAVA_OPTS: -Xmx160m
@@ -244,20 +252,5 @@ services:
       timeout: 5s
       retries: 15
 
-  db-seeder:
-    build:
-      context: ./infra/db-seeder
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      rating-service:
-        condition: service_healthy
-
 volumes:
   postgres_data:
-
