@@ -17,7 +17,7 @@ spring:
         spring.json.add.type.headers: false
 
 matchmaking:
-  elo-range: 200   # max elo difference for a match
+  elo-range: ${MATCHMAKING_ELO_RANGE:200}   # max elo difference for a match
 
 eureka:
   client:

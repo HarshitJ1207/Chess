@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +30,20 @@ import java.util.UUID;
 public class MatchmakingService {
 
     private static final String QUEUE_KEY_PREFIX = "queue:";
+    private static final String PLAYER_QUEUE_KEY_PREFIX = "player:";
+    private static final String PLAYER_QUEUE_KEY_SUFFIX = ":queue";
+    /**
+     * Backstop TTL for the queue-membership claim. The claim is normally released by
+     * {@link #leaveQueue} (cancel, navigate away, tab close) or on match detection. This TTL is
+     * refreshed on every poll <em>while the player is still visibly in the ZSET</em>, which covers
+     * a throttled background tab (browsers slow timers to roughly once a minute).
+     *
+     * <p>Once the matchmaking loop removes a matched pair from the ZSET, the claim is deliberately left
+     * to expire rather than refreshed. That is what stops a player from being re-added to the
+     * ZSET during the dispatch window (which would risk a duplicate match request), while still
+     * bounding how long a claim orphaned by an aborted match request can block a fresh search.
+     */
+    private static final Duration QUEUE_CLAIM_TTL = Duration.ofMinutes(2);
     private static final String MATCH_REQUEST_TOPIC = KafkaTopicConfig.MATCH_REQUEST_TOPIC;
 
     private static final List<String> TIME_CONTROLS = List.of(
@@ -53,12 +68,17 @@ public class MatchmakingService {
      * First checks if player is already in an active game (via Redis player key).
      * If in game, returns match details.
      * Otherwise, adds player to queue and returns queued status.
+     *
+     * <p>Also enforces single-queue membership: a player waiting in one time control cannot
+     * join another. See the claim check below for why the game key and the ZSET are both
+     * insufficient as guards.
      */
     public QueueResponse joinQueue(String username, QueueRequest request, boolean anonymous) {
         // Check if player is already in an active game
         String playerGameJson = redis.opsForValue().get("player:" + username + ":game");
 
         if (playerGameJson != null) {
+            QueueResponse matchedResponse = null;
             try {
                 // Parse JSON to extract game details
                 // JSON format: {"gameId":"...", "myColor":"white", "opponentUsername":"...", "timeControl":"...", "instanceUri":"..."}
@@ -67,10 +87,16 @@ public class MatchmakingService {
                 String myColor = node.get("myColor").asText();
                 String opponentUsername = node.get("opponentUsername").asText();
 
-                return QueueResponse.matched(UUID.fromString(gameId), myColor, opponentUsername);
+                matchedResponse = QueueResponse.matched(UUID.fromString(gameId), myColor, opponentUsername);
             } catch (Exception e) {
                 // JSON parse failed — stale entry, clean it up
                 redis.delete("player:" + username + ":game");
+            }
+            if (matchedResponse != null) {
+                // Keep cleanup outside the parse handler: a Redis failure must not erase a
+                // valid active-game claim or allow this player to join another queue.
+                redis.delete(queueClaimKey(username));
+                return matchedResponse;
             }
         }
 
@@ -91,9 +117,46 @@ public class MatchmakingService {
             }
         }
 
-        // Not in active game, add to queue
-        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
-        String queueKey = queuePrefix + request.timeControl();
+        // Not in an active game — add the player to the queue for this time control, but only if
+        // they aren't already searching in a different one. The active-game check above does not
+        // cover this: a player still waiting has no `player:{username}:game` key yet, so a second
+        // tab could freely join another queue. The ZSET cannot be the guard either, because a
+        // player legitimately already belongs to the queue they are re-joining (every poll
+        // re-invokes this method). Hence a dedicated membership claim.
+        String queueKey = queueKey(request.timeControl(), anonymous);
+        String claimKey = queueClaimKey(username);
+
+        String claimedQueue = redis.opsForValue().get(claimKey);
+
+        if (claimedQueue != null) {
+            if (!claimedQueue.equals(queueKey)) {
+                throw queuedElsewhere(claimedQueue);
+            }
+            // Status poll for the queue we are already in. Deliberately do NOT re-ZADD: the
+            // pairing loop may have just removed this player to hand them to game-service, and
+            // re-adding would let them be paired a second time. The TTL is only extended while
+            // the ZSET still holds the player, so a claim orphaned by an aborted match request
+            // expires instead of blocking this player forever.
+            if (isStillWaiting(username, queueKey)) {
+                redis.expire(claimKey, QUEUE_CLAIM_TTL);
+            }
+            return QueueResponse.queued();
+        }
+
+        Boolean claimed = redis.opsForValue().setIfAbsent(claimKey, queueKey, QUEUE_CLAIM_TTL);
+
+        if (!Boolean.TRUE.equals(claimed)) {
+            // Lost a simultaneous race (two tabs submitting at the same instant). Defer to the
+            // winner's claim instead of clobbering it.
+            String winner = redis.opsForValue().get(claimKey);
+            if (winner != null && !winner.equals(queueKey)) {
+                throw queuedElsewhere(winner);
+            }
+            // A concurrent request owns this join, including any dispatch already in progress.
+            // Re-inserting here could pair the same player twice.
+            return QueueResponse.queued();
+        }
+
         redis.opsForZSet().add(queueKey, username, elo);
 
         return QueueResponse.queued();
@@ -113,6 +176,9 @@ public class MatchmakingService {
                 // Try to parse JSON — if valid, player is in an active game
                 JsonNode node = mapper.readTree(playerGameJson);
                 if (node.has("gameId")) {
+                    // The player is past the queue; drop any leftover claim so it cannot block a
+                    // future search if the game key outlives its TTL expectations.
+                    redis.delete(queueClaimKey(username));
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Already in a game");
                 }
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
@@ -121,9 +187,50 @@ public class MatchmakingService {
             }
         }
 
-        // Remove from queue
-        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
-        redis.opsForZSet().remove(queuePrefix + timeControl, username);
+        // Remove from the queue and release the membership claim. If the claim belongs to a
+        // different queue, this call came from a stale tab (e.g. a `beforeunload` fired by an
+        // already-superseded queue page). Leave the player's current search untouched.
+        String queueKey = queueKey(timeControl, anonymous);
+        String claimKey = queueClaimKey(username);
+        String claimedQueue = redis.opsForValue().get(claimKey);
+
+        if (claimedQueue != null && !claimedQueue.equals(queueKey)) {
+            log.warn("Ignoring stale dequeue for {}: claim is {}, request was {}", username, claimedQueue, queueKey);
+            return;
+        }
+
+        redis.opsForZSet().remove(queueKey, username);
+        redis.delete(claimKey);
+    }
+
+    private String queueKey(String timeControl, boolean anonymous) {
+        return (anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX) + timeControl;
+    }
+
+    private String queueClaimKey(String username) {
+        return PLAYER_QUEUE_KEY_PREFIX + username + PLAYER_QUEUE_KEY_SUFFIX;
+    }
+
+    /** True while the player still has a ZSET entry, i.e. the pairing loop has not taken them. */
+    private boolean isStillWaiting(String username, String queueKey) {
+        return redis.opsForZSet().score(queueKey, username) != null;
+    }
+
+    private ResponseStatusException queuedElsewhere(String claimedQueue) {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
+                "Already searching in the " + timeControlOf(claimedQueue)
+                        + " queue. Cancel that search before joining another.");
+    }
+
+    /** Extracts the time control from a queue key: {@code queue:anon:3+0} -> {@code 3+0}. */
+    private String timeControlOf(String queueKey) {
+        String anonPrefix = QUEUE_KEY_PREFIX + "anon:";
+        if (queueKey.startsWith(anonPrefix)) {
+            return queueKey.substring(anonPrefix.length());
+        }
+        return queueKey.startsWith(QUEUE_KEY_PREFIX)
+                ? queueKey.substring(QUEUE_KEY_PREFIX.length())
+                : queueKey;
     }
 
     /**
@@ -141,8 +248,7 @@ public class MatchmakingService {
     }
 
     private void matchInQueue(String timeControl, boolean anonymous) {
-        String queuePrefix = anonymous ? QUEUE_KEY_PREFIX + "anon:" : QUEUE_KEY_PREFIX;
-        String queueKey = queuePrefix + timeControl;
+        String queueKey = queueKey(timeControl, anonymous);
 
         // Load entire queue snapshot (isolated from concurrent changes)
         Set<ZSetOperations.TypedTuple<String>> queue =
@@ -183,7 +289,6 @@ public class MatchmakingService {
     }
 
     private void publishMatchRequest(String p1Username, String p2Username, String timeControl, boolean anonymous) {
-        // Create deterministic partition key (sorted player usernames)
         String partitionKey = createPartitionKey(p1Username, p2Username);
 
         // Publish match request (game-service will create gameId and assign colors)

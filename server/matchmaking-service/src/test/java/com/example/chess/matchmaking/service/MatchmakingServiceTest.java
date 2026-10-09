@@ -18,10 +18,12 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,6 +50,9 @@ class MatchmakingServiceTest {
 
         when(redis.opsForValue()).thenReturn(valueOps);
         when(redis.opsForZSet()).thenReturn(zsetOps);
+
+        // A fresh joiner has no queue-membership claim yet; SETNX then succeeds.
+        lenient().when(valueOps.setIfAbsent(anyString(), anyString(), any(java.time.Duration.class))).thenReturn(true);
 
         // The @Value default is 200; set it explicitly since we construct the bean manually.
         org.springframework.test.util.ReflectionTestUtils.setField(service, "eloRange", 200);
@@ -109,6 +114,150 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    void joinQueueRejectsSecondQueueWhileAlreadySearching() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn("queue:3+0");
+        when(zsetOps.score("queue:3+0", "alice")).thenReturn(1500.0);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                service.joinQueue("alice", new QueueRequest("5+0"), false));
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("3+0"));
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+    }
+
+    @Test
+    void joinQueueTreatsSameQueueAsIdempotentPollWithoutReAdding() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn("queue:5+0");
+        when(zsetOps.score("queue:5+0", "alice")).thenReturn(1500.0);
+
+        QueueResponse resp = service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        assertEquals(QueueResponse.Status.QUEUED, resp.status());
+        // Re-adding after the pairing loop removed the player would allow a duplicate match.
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+        verify(redis).expire("player:alice:queue", java.time.Duration.ofMinutes(2));
+    }
+
+    @Test
+    void joinQueueDoesNotReAddPlayerAlreadyTakenByPairingLoop() {
+        // The pairing loop has ZREM'd this player to dispatch them to game-service, but the game
+        // key is not written yet. Re-adding here would let them be matched a second time, so the
+        // claim is left to expire rather than refreshed.
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn("queue:5+0");
+        when(zsetOps.score("queue:5+0", "alice")).thenReturn(null);
+
+        QueueResponse resp = service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        assertEquals(QueueResponse.Status.QUEUED, resp.status());
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+        verify(redis, never()).expire(anyString(), any(java.time.Duration.class));
+    }
+
+    @Test
+    void joinQueueRejectsWhenLosingSimultaneousRaceForAnotherQueue() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue"))
+                .thenReturn(null)              // first read: no claim
+                .thenReturn("queue:3+0");      // read after losing SETNX: winner's claim
+        when(zsetOps.score("queue:3+0", "alice")).thenReturn(1500.0);
+        when(valueOps.setIfAbsent(eq("player:alice:queue"), anyString(), any(java.time.Duration.class)))
+                .thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                service.joinQueue("alice", new QueueRequest("5+0"), false));
+
+        assertEquals(409, ex.getStatusCode().value());
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+    }
+
+    @Test
+    void joinQueueAllowsJoinAfterClaimExpires() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn(null);
+
+        service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        verify(valueOps).setIfAbsent(eq("player:alice:queue"), eq("queue:5+0"), any(java.time.Duration.class));
+        verify(zsetOps).add("queue:5+0", "alice", 1500.0);
+    }
+
+    @Test
+    void joinQueueDoesNotReAddAfterLosingRaceForSameQueue() {
+        when(valueOps.get("player:alice:queue"))
+                .thenReturn(null)
+                .thenReturn("queue:5+0");
+        when(valueOps.setIfAbsent(eq("player:alice:queue"), anyString(), any(java.time.Duration.class)))
+                .thenReturn(false);
+
+        QueueResponse response = service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        assertEquals(QueueResponse.Status.QUEUED, response.status());
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+    }
+
+    @Test
+    void joinQueueClaimsQueueWithMemberAndTtl() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn(null);
+        when(ratingClient.getRating("alice")).thenReturn(new RatingResponse("alice", 1650.0, 100, 0.06, 12));
+
+        service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        verify(valueOps).setIfAbsent(eq("player:alice:queue"), eq("queue:5+0"), any(java.time.Duration.class));
+        verify(zsetOps).add("queue:5+0", "alice", 1650.0);
+    }
+
+    @Test
+    void joinQueueReleasesClaimWhenAlreadyMatched() {
+        String gameJson = "{\"gameId\":\"00000000-0000-0000-0000-000000000001\",\"myColor\":\"white\",\"opponentUsername\":\"bob\"}";
+        when(valueOps.get("player:alice:game")).thenReturn(gameJson);
+
+        service.joinQueue("alice", new QueueRequest("5+0"), false);
+
+        verify(redis).delete("player:alice:queue");
+    }
+
+    @Test
+    void leaveQueueIgnoresStaleTabForDifferentQueue() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn("queue:3+0");
+
+        service.leaveQueue("alice", "5+0", false);
+
+        // The 3+0 search must survive: only the queue the claim points at may be left.
+        verify(zsetOps, never()).remove(anyString(), anyString());
+        verify(redis, never()).delete("player:alice:queue");
+    }
+
+    @Test
+    void queueCleanupFailureDoesNotEraseActiveGameClaim() {
+        when(valueOps.get("player:alice:game")).thenReturn(
+                "{\"gameId\":\"00000000-0000-0000-0000-000000000001\",\"myColor\":\"white\",\"opponentUsername\":\"bob\"}");
+        when(redis.delete("player:alice:queue")).thenThrow(new RuntimeException("Redis unavailable"));
+
+        assertThrows(RuntimeException.class, () ->
+                service.joinQueue("alice", new QueueRequest("5+0"), false));
+
+        verify(redis, never()).delete("player:alice:game");
+        verify(zsetOps, never()).add(anyString(), anyString(), anyDouble());
+    }
+
+    @Test
+    void leaveQueueReleasesClaimForMatchingQueue() {
+        when(valueOps.get("player:alice:game")).thenReturn(null);
+        when(valueOps.get("player:alice:queue")).thenReturn("queue:5+0");
+
+        service.leaveQueue("alice", "5+0", false);
+
+        verify(zsetOps).remove("queue:5+0", "alice");
+        verify(redis).delete("player:alice:queue");
+    }
+
+    @Test
     void leaveQueueRejectsWhenAlreadyInGame() {
         when(valueOps.get("player:alice:game"))
                 .thenReturn("{\"gameId\":\"00000000-0000-0000-0000-000000000001\"}");
@@ -149,7 +298,7 @@ class MatchmakingServiceTest {
 
         service.matchPlayers();
 
-        verify(kafkaTemplate).send(eq("match-request"), anyString(), any(MatchRequest.class));
+        verify(kafkaTemplate).send(eq("match-request"), eq("alice:bob"), any(MatchRequest.class));
     }
 
     @Test
