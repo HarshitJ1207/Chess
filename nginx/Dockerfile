@@ -11,6 +11,8 @@ RUN npm ci
 
 # Copy source and build
 COPY client/ ./
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 # Stage 2: Serve with Nginx
